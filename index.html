@@ -1,0 +1,2550 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Desgrabador</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#eef0f3; --card:#ffffff; --ink:#18212b; --muted:#5c6875; --line:#d9dee4; --line-soft:#e8ecf0; --plomo:#f5f6f8;
+    --accent:#1088cc; --accent-deep:#0b6aa3; --accent-ink:#ffffff; --accent-soft:#e3f3fc; --accent-line:#a9d8f3;
+    --ok:#15803d; --warn:#a85d06; --err:#b91c1c; --mark:#ffe98a;
+    --ui:"Instrument Sans",system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --read:"Source Serif 4",Georgia,"Times New Roman",serif;
+    --r-s:6px; --r-m:10px; --r-l:16px; --dock:68px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--ui)}
+  .hidden{display:none!important}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  /* Barra superior */
+  header{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px;padding:0 24px;height:56px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px;letter-spacing:-.01em;white-space:nowrap}
+  .brand svg{flex:0 0 auto}
+  h1{font:inherit;margin:0}
+  .sub{display:none}
+  .topnav{margin-left:auto;display:flex;gap:8px;align-items:center}
+  .userbar{display:flex;gap:10px;align-items:center;font-size:13px;color:var(--muted)}
+  .userbar b{color:var(--ink)} .userbar button{padding:5px 10px;font-size:13px}
+  .ghost{border-color:transparent;background:transparent;color:var(--muted);padding:7px 10px}
+  .ghost:hover:not(:disabled){background:var(--plomo);border-color:transparent;color:var(--ink)}
+
+  main{max-width:1200px;margin:0 auto;padding:28px 24px 72px}
+  h2{font-size:20px;line-height:1.25;margin:0 0 4px;letter-spacing:-.015em;font-weight:700}
+  .lead{color:var(--muted);margin:0 0 18px;max-width:56ch}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r-l);padding:24px}
+
+  /* Controles */
+  button{font:inherit;font-weight:500;cursor:pointer;border-radius:var(--r-m);border:1px solid var(--line);background:#fff;color:var(--ink);padding:8px 13px}
+  button:hover:not(:disabled){border-color:#aab4bf;background:var(--plomo)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600;padding:12px 22px;font-size:16px}
+  button.primary:hover:not(:disabled){background:var(--accent-deep);border-color:var(--accent-deep)}
+  select,input[type=search],input[type=url],input[type=text],input[type=email],input[type=password]{font:inherit;color:var(--ink);padding:9px 11px;border:1px solid var(--line);border-radius:var(--r-m);background:#fff;width:100%}
+  select:hover,input:hover{border-color:#aab4bf}
+  .hint{color:var(--muted);font-size:13.5px;margin:8px 0 0}
+  .hint.good{color:var(--ok)} .hint.warnc{color:var(--warn)}
+  .chk{display:flex;gap:7px;align-items:center;font-size:13.5px;color:var(--muted)}
+  .chk input,.exports input{accent-color:var(--accent);width:16px;height:16px}
+  .row-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;align-items:center}
+  .notice{margin-top:14px;padding:12px 14px;border-radius:var(--r-m);background:var(--accent-soft);border:1px solid var(--accent-line)}
+  .notice .row-actions{margin-top:10px}
+  .error{color:var(--err);background:#fdecec;border:1px solid #f5c2c2;border-radius:var(--r-m);padding:12px 14px;margin-top:12px}
+  .error details{margin-top:6px;font-size:13px;color:#7f1d1d}
+  .empty{color:var(--muted);padding:28px 8px;text-align:center}
+
+  /* Inicio: nueva transcripción + lista */
+  .home{display:grid;grid-template-columns:minmax(0,1fr);gap:24px;align-items:start}
+  @media(min-width:1000px){.home{grid-template-columns:minmax(0,440px) minmax(0,1fr)}}
+  .tabs{display:inline-flex;gap:2px;padding:3px;background:var(--bg);border-radius:var(--r-m);margin-bottom:14px}
+  .tab{border:none;background:transparent;color:var(--muted);padding:7px 18px;border-radius:8px;font-weight:600}
+  .tab:hover:not(:disabled){background:rgba(255,255,255,.6);border:none}
+  .tab.on,.tab.on:hover{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(24,33,43,.12)}
+  .drop{position:relative;border:1.5px dashed #b4bec9;border-radius:var(--r-m);padding:34px 18px;text-align:center;cursor:pointer;background:var(--plomo);transition:background .15s,border-color .15s}
+  .drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+  .drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
+  .drop svg{display:block;margin:0 auto 10px;color:var(--accent)}
+  .drop strong{display:block;font-size:16px}
+  .drop span{color:var(--muted)}
+  .drop small{display:block;color:var(--muted);margin-top:10px;font-size:12.5px}
+  .fileinfo{margin-top:12px;padding:11px 13px;border-radius:var(--r-m);background:var(--accent-soft);border:1px solid var(--accent-line);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .fileinfo b{word-break:break-all}
+  .lbl{display:flex;flex-direction:column;gap:6px;font-size:13.5px;color:var(--muted);font-weight:500}
+  .opts{display:grid;grid-template-columns:1.3fr 1fr;gap:12px;margin:20px 0 4px}
+  .opts label{display:flex;flex-direction:column;gap:5px;font-size:13.5px;color:var(--muted);font-weight:500;min-width:0}
+  .opts label:last-child{grid-column:1 / -1}
+  #startBtn{width:100%}
+  .helper{margin-top:12px;padding:12px 14px;border-radius:var(--r-m);background:#fff;border:1px solid var(--line);font-size:14px}
+  .helper.on{border-color:#86efac;background:#f0fdf4}
+  .helper.off{border-color:#f3d48a;background:#fffaeb}
+  .helper ol{margin:8px 0 6px 20px;padding:0}.helper li{margin:5px 0}
+  .helper details{margin-top:8px}.helper summary{cursor:pointer;font-weight:600}
+  .helper .ok{color:var(--ok)}
+  .helper code{background:var(--bg);padding:1px 5px;border-radius:5px;font-size:12.5px;word-break:break-all}
+
+  /* Lista de transcripciones */
+  #history{padding:24px 0 8px}
+  #history h2,#history .lead{padding:0 24px}
+  .listhead{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;padding:8px 84px 8px 24px;font-size:12.5px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--line)}
+  .hist{display:block}
+  .hcard{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:6px 16px;padding:13px 84px 13px 24px;border-bottom:1px solid var(--line-soft);cursor:pointer;background:#fff}
+  .hcard:last-child{border-bottom:none}
+  .hcard:hover,.hcard:focus-visible{background:var(--accent-soft);outline:none}
+  .hname{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hmeta{display:flex;gap:10px;align-items:center;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .trash{position:absolute;top:50%;right:16px;transform:translateY(-50%);border:none;background:transparent;padding:4px 8px;opacity:0;font-size:12.5px;color:var(--muted)}
+  .hcard:hover .trash,.trash:focus-visible,.trash.sure{opacity:.7}
+  .trash:hover{opacity:1!important;background:#fff!important}
+  .trash.sure{opacity:1;color:var(--err);font-size:12.5px;font-weight:600;background:#fdecec!important}
+  .badge{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;background:var(--bg);color:#475467;font-weight:600}
+  .badge.ok{background:#dcfce7;color:#166534}.badge.part{background:#fef3c7;color:#92400e}.badge.run{background:var(--accent-soft);color:var(--accent-deep)}
+  @media(max-width:560px){.hcard{grid-template-columns:1fr}.listhead span:last-child{display:none}}
+  .tipsbox{margin-top:24px;background:transparent;border:none;padding:0 4px}
+  details.tips summary{cursor:pointer;font-weight:600;color:var(--muted)}
+  details.tips ul{max-width:76ch;color:var(--muted)} details.tips li{margin:6px 0} details.tips b{color:var(--ink)}
+
+  /* Vista de documento */
+  body:not(.doc) #docView{display:none}
+  body.doc #homeView{display:none}
+  body.doc main{padding-bottom:calc(var(--dock) + 40px)}
+  .docbar{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+  .doclayout{display:grid;grid-template-columns:minmax(0,1fr);gap:24px;align-items:start}
+  @media(min-width:1000px){.doclayout{grid-template-columns:minmax(0,1fr) 300px}}
+  .rail{display:flex;flex-direction:column;gap:16px}
+  @media(min-width:1000px){.rail{position:sticky;top:76px;max-height:calc(100vh - 76px - var(--dock) - 20px);overflow:auto}}
+  .panel{background:#fff;border:1px solid var(--line);border-radius:var(--r-l);padding:16px}
+  .panel h3{font-size:13.5px;margin:0 0 10px;font-weight:700}
+  #work{margin-bottom:16px;padding:18px 24px}
+  #work h2{font-size:16px;margin-bottom:10px}
+  .steps{list-style:none;padding:0;margin:0 0 12px;display:flex;gap:6px 22px;flex-wrap:wrap}
+  .steps li{display:flex;gap:8px;align-items:flex-start;color:var(--muted);font-size:13.5px}
+  .steps li .dot{width:18px;height:18px;flex:0 0 18px;border-radius:50%;border:2px solid #c3ccd6;display:grid;place-items:center;font-size:10px;margin-top:1px}
+  .steps li.active{color:var(--ink);font-weight:600}
+  .steps li.active .dot{border-color:var(--accent);border-top-color:transparent;animation:spin 1s linear infinite}
+  .steps li.done{color:var(--ink)}
+  .steps li.done .dot{border-color:var(--ok);background:var(--ok);color:#fff}
+  .steps li.done .dot::after{content:"✓"}
+  .steps li .detail{display:block;font-weight:400;color:var(--muted);font-size:12.5px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @media(prefers-reduced-motion:reduce){.steps li.active .dot{animation:none}}
+  .bar{height:8px;background:var(--bg);border-radius:99px;overflow:hidden}
+  .bar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+  .stats{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-top:8px;font-variant-numeric:tabular-nums}
+  #work .row-actions{margin-top:12px}
+
+  /* La hoja de la transcripción */
+  #result{padding:36px clamp(20px,5vw,56px) 44px}
+  #resultTitle{font:600 26px/1.2 var(--read);letter-spacing:-.01em;margin:0 0 6px;word-break:break-word}
+  .howto{color:var(--muted);font-size:13.5px;margin:0 0 22px;max-width:70ch}
+  #rows{border-top:1px solid var(--line-soft);padding-top:18px}
+  .r{display:grid;grid-template-columns:128px minmax(0,1fr);grid-template-rows:auto 1fr;column-gap:22px;row-gap:5px;padding:6px 0;align-items:start}
+  #rows:not(.with-spk) .r{grid-template-columns:58px minmax(0,1fr)}
+  .r.turn{margin-top:16px}
+  .sp{grid-column:1;grid-row:1;justify-self:start;max-width:100%;font-size:13px;font-weight:600;padding:3px 10px;border-radius:99px;border:1px solid transparent;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#1f2937;margin-top:3px}
+  .ts{grid-column:1;grid-row:2;justify-self:start;font-size:12.5px;font-variant-numeric:tabular-nums;font-weight:500;padding:1px 6px;margin-left:4px;border-radius:var(--r-s);background:transparent;border:1px solid transparent;color:var(--muted)}
+  #rows:not(.with-spk) .ts{grid-row:1;margin:5px 0 0}
+  .ts:hover:not(:disabled){background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent-deep)}
+  .r.playing .ts{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .tx{grid-column:2;grid-row:1 / span 2;outline:none;white-space:pre-wrap;font:400 18px/1.65 var(--read);max-width:68ch;border-radius:4px}
+  .tx:focus{background:#f6fbff;box-shadow:0 0 0 6px #f6fbff,0 0 0 7px var(--accent-line)}
+  .seg.match{background:var(--mark);border-radius:3px}
+  .seg.current{outline:2px solid var(--accent);outline-offset:1px;border-radius:3px}
+  .seg.playing{background:#cfeafb;border-radius:3px;box-shadow:0 0 0 2px #cfeafb}
+  .only-matches .r:not(:has(.seg.match)){display:none}
+  .only-matches .seg:not(.match){opacity:.45}
+  .c1{background:#fecaca}.c2{background:#bbf7d0}.c3{background:#bfdbfe}.c4{background:#fde68a}.c5{background:#e9d5ff}.c6{background:#fed7aa}.c7{background:#a5f3fc}.c8{background:#fbcfe8}
+  .sp:hover:not(:disabled){filter:brightness(.95);border-color:rgba(0,0,0,.18)}
+  @media(max-width:640px){.r,#rows:not(.with-spk) .r{grid-template-columns:1fr auto;grid-template-rows:auto}.sp{grid-row:1;grid-column:1}.ts,#rows:not(.with-spk) .ts{grid-row:1;grid-column:2;margin:3px 0 0}.tx{grid-column:1 / -1;grid-row:2}}
+
+  /* Paneles laterales */
+  .toolbar{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px;align-items:center}
+  .toolbar .count{grid-column:1 / -1;font-size:13px;color:var(--muted);min-height:18px}
+  .toolbar .chk{grid-column:1 / -1}
+  .toolbar button{padding:8px 11px}
+  .spkbar{display:block}
+  #legend{display:flex;flex-wrap:wrap;gap:6px}
+  #legend .sp{margin:0;max-width:100%}
+  .lblinline{font-size:13.5px;color:var(--muted);display:flex;gap:8px;align-items:center;margin-top:12px}
+  .lblinline select{padding:5px 8px;width:auto}
+  .exports{display:grid;gap:8px}
+  .exports button{text-align:left}
+  .exports label{font-size:13.5px;color:var(--muted);display:flex;gap:7px;align-items:center;margin-bottom:2px}
+
+  /* Reproductor fijo abajo */
+  #dock{position:fixed;left:0;right:0;bottom:0;z-index:15;background:#fff;border-top:1px solid var(--line);height:var(--dock);display:flex;align-items:center;padding:0 24px;box-shadow:0 -4px 16px rgba(24,33,43,.06)}
+  #dock audio{width:100%;max-width:1152px;margin:0 auto;height:40px}
+  body:not(.doc) #dock,#dock.noaudio{display:none}
+
+  #citeBtn{position:absolute;z-index:50;display:none;background:var(--ink);color:#fff;border:none;padding:7px 12px;border-radius:8px;font-size:13.5px;font-weight:600;box-shadow:0 4px 14px rgba(0,0,0,.2)}
+  #toast{position:fixed;left:50%;bottom:calc(var(--dock) + 16px);transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:var(--r-m);font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:60}
+  #toast.show{opacity:1}
+  #spkPop{position:absolute;z-index:55;width:290px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;box-shadow:0 10px 30px rgba(24,33,43,.18)}
+  #spkPop label{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--muted)}
+  .pophint{font-size:12px;color:var(--muted);margin-top:4px}
+  .poptitle{font-size:13px;color:var(--muted);margin:12px 0 6px;border-top:1px solid var(--line);padding-top:10px}
+  .popbtns{display:flex;gap:6px;flex-wrap:wrap}
+  .popbtns button{font-size:13px;padding:5px 9px}
+  .popbtns .sp{max-width:150px;margin:0}
+  .saved{margin-top:10px}
+  .saved .it{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line);flex-wrap:wrap}
+  .saved .it span{font-size:14px;color:var(--muted)}
+
+  /* Acceso con cuenta */
+  .auth{max-width:440px;margin:40px auto}
+  .auth label{display:block;font-size:13.5px;color:var(--muted);margin:12px 0 4px}
+  .auth .primary{width:100%;margin-top:18px}
+  .auth .link{border:none;background:none;color:var(--accent-deep);padding:4px 0;margin-top:12px;font-size:13.5px;text-decoration:underline}
+  .auth .msg{margin-top:12px;padding:10px 12px;border-radius:var(--r-m);font-size:13.5px}
+  .auth .msg.bad{background:#fdecec;color:var(--err)} .auth .msg.good{background:#dcfce7;color:#166534}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><rect width="26" height="26" rx="7" fill="#1088cc"/><g stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M7 11v4M10.5 8v10M14 10.5v5M17.5 7v12M20.5 11.5v3"/></g></svg>
+    <h1>Desgrabador</h1>
+  </div>
+  <p class="sub"></p>
+  <div class="topnav">
+    <div id="userBar" class="userbar hidden"><span>Sesión: <b id="userEmail"></b></span><span id="syncState"></span><button id="logoutBtn">Cerrar sesión</button></div>
+    <button class="ghost hidden" id="reopenBtn">Volver a la transcripción abierta</button>
+  </div>
+</header>
+<section id="authView" class="card auth hidden">
+  <div class="tabs"><button class="tab on" id="authTabIn">Iniciar sesión</button><button class="tab" id="authTabUp">Crear cuenta</button></div>
+  <form id="authForm" autocomplete="on">
+    <div id="authFields">
+      <label for="authEmail">Correo</label><input id="authEmail" type="email" autocomplete="email" required>
+      <label for="authPass" id="authPassLbl">Contraseña</label><input id="authPass" type="password" autocomplete="current-password" minlength="8" required>
+    </div>
+    <button class="primary" id="authGo" type="submit">Entrar</button>
+  </form>
+  <button class="link" id="authForgot" type="button">Olvidé mi contraseña</button>
+  <div id="authMsg" class="msg hidden"></div>
+  <p class="hint">Cada cuenta ve solo sus propias transcripciones. En la cuenta se guarda el texto; el audio nunca sale de tu computadora.</p>
+</section>
+
+<main>
+  <!-- Inicio -->
+  <div id="homeView">
+    <div class="home">
+      <section class="card" id="setup">
+        <h2>Nueva transcripción</h2>
+        <p class="lead">Entrevistas, podcasts y videos de una o dos horas, sin límite de minutos. El audio se procesa en tu computadora y no se sube a ningún sitio.</p>
+        <div class="error hidden" id="envBox"><b>Esta vista previa no puede transcribir.</b><br>
+          Estás viendo el archivo dentro de otra aplicación (por ejemplo, la vista previa de Claude), y ahí el navegador bloquea las herramientas que hacen la transcripción.<br><br>
+          <b>Qué hacer:</b> descarga el archivo <i>Desgrabador.html</i>, guárdalo en tu computadora (por ejemplo, en el Escritorio) y ábrelo con <b>doble clic</b>. Si se abre con otro programa, haz clic derecho sobre el archivo → <b>Abrir con</b> → <b>Google Chrome</b>.</div>
+        <div class="tabs">
+          <button class="tab on" id="tabFile">Archivo</button>
+          <button class="tab" id="tabUrl">Enlace</button>
+        </div>
+        <div id="paneFile">
+          <div class="drop" id="drop">
+            <input type="file" id="file" accept="audio/*,video/*,.m4a,.mp3,.wav,.mp4,.mov,.ogg,.opus,.oga,.aac,.flac,.webm,.mkv,.wma,.amr,.3gp">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+            <strong>Arrastra aquí tu audio o video</strong>
+            <span>o haz clic para buscarlo en tu computadora</span>
+            <small>MP3, M4A, WAV, MP4, MOV, OGG y OPUS (audios de WhatsApp), WEBM</small>
+          </div>
+          <div class="fileinfo hidden" id="fileinfo"></div>
+        </div>
+        <div id="paneUrl" class="hidden">
+          <label class="lbl">Enlace del audio o video
+            <input type="url" id="url" placeholder="https://www.youtube.com/watch?v=...">
+          </label>
+          <p class="hint">YouTube, X, Facebook, Instagram, Google Drive y enlaces directos a archivos (.mp3, .m4a, .mp4).</p>
+          <p class="hint warnc hidden" id="urlWarn"></p>
+          <div class="helper off" id="helperBox"></div>
+        </div>
+        <div class="notice hidden" id="resumeBox"></div>
+
+        <div class="opts">
+          <label>Calidad
+            <select id="quality">
+              <option value="base">Rápida (menos precisa)</option>
+              <option value="small" selected>Equilibrada (recomendada)</option>
+              <option value="turbo">Máxima (requiere tarjeta gráfica)</option>
+            </select>
+          </label>
+          <label>Idioma del audio
+            <select id="lang">
+              <option value="spanish" selected>Español</option>
+              <option value="english">Inglés</option>
+              <option value="portuguese">Portugués</option>
+              <option value="">Detectar automáticamente</option>
+            </select>
+          </label>
+          <label>¿Cuántas personas hablan?
+            <select id="nspk">
+              <option value="auto" selected>Detectar automáticamente</option>
+              <option value="1">1 persona</option>
+              <option value="2">2 personas</option>
+              <option value="3">3 personas</option>
+              <option value="4">4 personas</option>
+              <option value="5">5 personas</option>
+              <option value="6">6 personas</option>
+              <option value="off">No identificar oradores</option>
+            </select>
+          </label>
+        </div>
+        <p class="hint">Si sabes cuántas personas hablan, elígelo: los oradores se identifican mejor.</p>
+        <p class="hint hidden" id="engineInfo"></p>
+        <p class="hint" id="qualityInfo"></p>
+        <label class="chk" style="margin-top:8px"><input type="checkbox" id="forceCPU"> Usar solo el procesador (actívalo si la transcripción sale con errores raros)</label>
+        <div class="row-actions">
+          <button class="primary" id="startBtn" disabled>Transcribir</button>
+        </div>
+      </section>
+
+      <section class="card" id="history">
+        <h2>Mis transcripciones</h2>
+        <p class="lead">Se guardan en este navegador, con su audio. Haz clic en una para abrirla.</p>
+        <div class="listhead"><span>Nombre</span><span>Fecha, duración y estado</span></div>
+        <div id="histGrid" class="hist"><div class="empty">Todavía no hay transcripciones. Sube un archivo o pega un enlace para empezar.</div></div>
+      </section>
+    </div>
+
+    <section class="tipsbox">
+      <details class="tips">
+        <summary>Consejos y preguntas frecuentes</summary>
+        <ul>
+          <li><b>La primera vez demora más:</b> la página descarga los “modelos de voz” (los programas que reconocen las palabras y las voces). Luego quedan guardados en Chrome y las siguientes veces arranca rápido.</li>
+          <li><b>¿Cuánto tarda?</b> Depende de tu computadora. Con tarjeta gráfica, una entrevista de 1 hora suele tomar unos minutos; solo con el procesador puede tardar bastante más. Identificar oradores agrega algo de tiempo.</li>
+          <li><b>Oradores:</b> la página distingue las voces y las llama Orador 1, Orador 2… Haz clic en un nombre para cambiarlo (por ejemplo, por el nombre del entrevistado): se cambia en toda la transcripción. Si un fragmento quedó con el orador equivocado, haz clic en su etiqueta y elige el correcto. Funciona mejor cuando las personas no hablan al mismo tiempo.</li>
+          <li><b>Instagram y videos privados:</b> Instagram casi siempre pide iniciar sesión. Inicia sesión en Instagram con Firefox y abre el archivo <i>navegador.txt</i> de la carpeta del programa auxiliar (<code>%LOCALAPPDATA%\TranscriptorAyudante</code>) y escribe <b>firefox</b> en él. Los videos privados o de cuentas cerradas que tu sesión no puede ver no se pueden descargar. En Google Drive, el archivo debe estar compartido con “cualquier persona con el enlace”.</li>
+          <li><b>Usa Google Chrome o Microsoft Edge</b> actualizados.</li>
+          <li><b>Verifica siempre las citas:</b> la transcripción automática puede equivocarse con nombres propios, siglas y cifras. Haz clic en la hora para escuchar el fragmento antes de publicarlo.</li>
+          <li><b>Tus transcripciones</b> (el texto y una copia liviana del audio para volver a escucharlo) se guardan en este navegador, en esta computadora. Si borras los datos de navegación de Chrome, se pierden: descarga en Word las que quieras conservar.</li>
+          <li><b>Privacidad:</b> el audio no sale de tu computadora. Solo se descargan de internet las herramientas que hacen el trabajo.</li>
+        </ul>
+      </details>
+    </section>
+  </div>
+
+  <!-- Documento -->
+  <div id="docView">
+    <div class="docbar"><button id="backBtn">← Mis transcripciones</button></div>
+    <div class="doclayout">
+      <div>
+        <section class="card hidden" id="work">
+          <h2>Transcribiendo</h2>
+          <ul class="steps">
+            <li id="st-audio"><span class="dot"></span><span>Preparar el audio<span class="detail"></span></span></li>
+            <li id="st-model"><span class="dot"></span><span>Cargar los modelos de voz<span class="detail"></span></span></li>
+            <li id="st-tx"><span class="dot"></span><span>Transcribir<span class="detail"></span></span></li>
+          </ul>
+          <div class="bar"><i id="bar"></i></div>
+          <div class="stats"><span id="statL"></span><span id="statR"></span></div>
+          <div class="row-actions">
+            <button id="pauseBtn" disabled>Pausar</button>
+            <button id="stopBtn" disabled>Detener</button>
+          </div>
+          <p class="hint">Puedes leer y copiar citas mientras avanza. Mantén esta pestaña abierta y la computadora enchufada. Si se interrumpe, el avance queda guardado.</p>
+          <div class="notice hidden" id="spkNote"></div>
+          <div class="error hidden" id="errBox"></div>
+        </section>
+
+        <section class="card hidden" id="result">
+          <h2 id="resultTitle">Transcripción</h2>
+          <p class="howto">Clic en la hora para escuchar ese momento. Clic en el texto para corregirlo. Para citar, selecciona una frase y pulsa “Copiar cita”.</p>
+          <div class="notice hidden" id="linkAudio">Esta transcripción no tiene el audio guardado en esta computadora. Selecciónalo una vez y quedará guardado:
+            <input type="file" id="relink" accept="audio/*,video/*,.m4a,.mp3,.wav,.mp4,.mov,.ogg,.opus,.oga,.aac,.flac,.webm,.mkv" style="margin-left:8px">
+          </div>
+          <div id="rows"><div class="empty">Aquí irá apareciendo el texto.</div></div>
+        </section>
+      </div>
+
+      <aside class="rail">
+        <div class="panel">
+          <h3>Buscar en el texto</h3>
+          <div class="toolbar">
+            <input type="search" id="search" placeholder="Palabra o frase">
+            <button id="prevBtn" title="Resultado anterior" aria-label="Resultado anterior">↑</button>
+            <button id="nextBtn" title="Resultado siguiente" aria-label="Resultado siguiente">↓</button>
+            <span class="count" id="count"></span>
+            <label class="chk"><input type="checkbox" id="onlyMatches"> Mostrar solo las coincidencias</label>
+          </div>
+        </div>
+        <div class="panel spkbar hidden" id="spkBar">
+          <h3>Oradores</h3>
+          <div id="legend"></div>
+          <p class="hint">Clic en un nombre para cambiarlo en todo el texto.</p>
+          <label class="lblinline">Cantidad
+            <select id="nspk2">
+              <option value="auto">Automático</option>
+              <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+              <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+            </select>
+          </label>
+        </div>
+        <div class="panel">
+          <h3>Exportar</h3>
+          <div class="exports">
+            <label><input type="checkbox" id="withTimes" checked> Incluir marcas de tiempo</label>
+            <button id="copyAll">Copiar todo</button>
+            <button id="dlDocx">Descargar Word</button>
+            <button id="dlTxt">Descargar TXT</button>
+            <button id="dlSrt" title="Archivo de subtítulos para Premiere, CapCut o DaVinci">Descargar subtítulos (SRT)</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</main>
+
+<div id="dock"><audio id="player" controls preload="metadata"></audio></div>
+
+<button id="citeBtn">Copiar cita</button>
+<div id="spkPop" class="hidden"></div>
+<div id="toast"></div>
+
+<!-- ============ Worker: reconocimiento de voz (Whisper) y de oradores ============ -->
+<script type="text/plain" id="asr-src">
+let T = null, asr = null, spkProc = null, spkModel = null;
+const send = (m, t) => postMessage(m, t || []);
+async function embed(audio) {
+  const inputs = await spkProc(audio);
+  const out = await spkModel(inputs);
+  let t = out.embeddings || out.embs || out.embedding;
+  if (!t) for (const k in out) { const x = out[k]; if (x && x.dims && x.dims.length === 2 && x.dims[0] === 1 && x.dims[1] >= 64) { t = x; break; } }
+  if (!t) throw new Error('Salida desconocida del modelo de oradores: ' + Object.keys(out).join(','));
+  const v = Float32Array.from(t.data); let n = 0;
+  for (let i = 0; i < v.length; i++) n += v[i] * v[i];
+  n = Math.sqrt(n) || 1; for (let i = 0; i < v.length; i++) v[i] /= n;
+  return v;
+}
+self.onmessage = async ({ data: m }) => {
+  try {
+    if (!T) { T = await import(m.url); T.env.allowLocalModels = false; }
+    const dl = (p) => send({ type: 'dl', status: p.status, file: p.file, loaded: p.loaded, total: p.total });
+    if (m.type === 'load') {
+      if (asr) { try { await asr.dispose(); } catch (e) {} asr = null; }
+      asr = await T.pipeline('automatic-speech-recognition', m.id, { device: m.device, dtype: m.dtype, progress_callback: dl });
+      send({ type: 'warming' });
+      const o = { task: 'transcribe' }; if (m.language) o.language = m.language;
+      await asr(new Float32Array(16000), o);
+      send({ type: 'loaded' });
+    } else if (m.type === 'loadSpk') {
+      let last = null;
+      for (const c of m.candidates) {
+        try {
+          spkProc = await T.AutoProcessor.from_pretrained(c.id);
+          spkModel = await T.AutoModel.from_pretrained(c.id, { device: 'wasm', dtype: c.dtype, progress_callback: dl });
+          const test = new Float32Array(32000); for (let i = 0; i < test.length; i++) test[i] = Math.sin(i / 9) * 0.1;
+          const v = await embed(test);
+          if (!v.length) throw new Error('vector vacío');
+          send({ type: 'spkLoaded', kind: c.kind }); return;
+        } catch (e) { last = e; spkProc = spkModel = null; }
+      }
+      throw last || new Error('sin modelo de oradores');
+    } else if (m.type === 'embed') {
+      const v = await embed(m.audio);
+      send({ type: 'emb', v }, [v.buffer]);
+    } else if (m.type === 'run') {
+      const o = { task: 'transcribe', return_timestamps: true };
+      if (m.language) o.language = m.language;
+      let out;
+      try { out = await asr(m.audio, o); }
+      catch (e) { o.return_timestamps = false; out = await asr(m.audio, o); }
+      send({ type: 'result', id: m.id, text: out.text || '', chunks: out.chunks || null });
+    }
+  } catch (e) {
+    send({ type: 'error', stage: m.type, id: m.id, error: String((e && (e.message || e)) || 'Error') });
+  }
+};
+</script>
+
+<!-- ============ Worker: conversión de audio (ffmpeg) ============ -->
+<script type="text/plain" id="ff-src">
+let core = null, duration = 0, lastLog = [], onTime = null;
+const send = (m, t) => postMessage(m, t || []);
+function parseT(h, mi, s) { return (+h) * 3600 + (+mi) * 60 + parseFloat(s); }
+function onLog(msg) {
+  if (typeof msg !== 'string') return;
+  lastLog.push(msg); if (lastLog.length > 40) lastLog.shift();
+  let m = msg.match(/Duration:\s*(\d+):(\d+):([\d.]+)/);
+  if (m && !duration) { duration = parseT(m[1], m[2], m[3]); send({ type: 'duration', duration }); }
+  m = msg.match(/time=\s*(\d+):(\d+):([\d.]+)/);
+  if (m) send({ type: 'progress', time: parseT(m[1], m[2], m[3]), duration });
+}
+async function getWasm(url) {
+  let cache = null;
+  try { cache = await caches.open('transcriptor-ffmpeg'); const hit = await cache.match(url); if (hit) return await hit.arrayBuffer(); } catch (e) {}
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('HTTP ' + r.status + ' al descargar ' + url);
+  const total = +r.headers.get('content-length') || 32e6;
+  const reader = r.body.getReader(); const parts = []; let got = 0;
+  for (;;) { const { done, value } = await reader.read(); if (done) break; parts.push(value); got += value.length; send({ type: 'dl', loaded: got, total }); }
+  const buf = new Uint8Array(got); let o = 0; for (const p of parts) { buf.set(p, o); o += p.length; }
+  try { if (cache) await cache.put(url, new Response(buf.slice(0), { headers: { 'Content-Type': 'application/wasm' } })); } catch (e) {}
+  return buf.buffer;
+}
+async function load(bases) {
+  let lastErr = null;
+  for (const base of bases) {
+    try {
+      const coreURL = base + 'ffmpeg-core.js', wasmURL = base + 'ffmpeg-core.wasm';
+      if (typeof createFFmpegCore === 'undefined') importScripts(coreURL);
+      const wasmBinary = await getWasm(wasmURL);
+      core = await createFFmpegCore({
+        mainScriptUrlOrBlob: coreURL + '#' + btoa(JSON.stringify({ wasmURL, workerURL: '' })),
+        wasmBinary
+      });
+      core.setLogger((d) => onLog(d && d.message));
+      return;
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error('No se pudo cargar el conversor');
+}
+self.onmessage = async ({ data: m }) => {
+  if (m.type !== 'extract') return;
+  try {
+    if (!core) await load(m.bases);
+    send({ type: 'ready' });
+    duration = 0; lastLog = [];
+    const ext = ((m.file.name.match(/\.([a-z0-9]{1,5})$/i) || [0, 'bin'])[1]).toLowerCase();
+    const name = 'input.' + ext;
+    const f = new File([m.file], name);
+    try { core.FS.mkdir('/in'); } catch (e) {}
+    core.FS.mount(core.FS.filesystems.WORKERFS, { files: [f] }, '/in');
+    core.setTimeout(-1);
+    const base = ['-hide_banner', '-nostdin', '-i', '/in/' + name, '-vn', '-sn', '-dn', '-ac', '1', '-ar', '16000', '-f', 's16le', '-y', '/out.pcm'];
+    const copy = ['-vn', '-sn', '-dn', '-ac', '1', '-ar', '16000', '-c:a', 'libmp3lame', '-b:a', '32k', '-y', '/out.mp3'];
+    core.exec(...base, ...copy);
+    let ret = core.ret; core.reset(); let hasCopy = ret === 0;
+    if (ret !== 0) { // sin la copia liviana
+      try { core.FS.unlink('/out.mp3'); } catch (e) {} try { core.FS.unlink('/out.pcm'); } catch (e) {}
+      duration = 0; lastLog = [];
+      core.exec(...base); ret = core.ret; core.reset();
+    }
+    try { core.FS.unmount('/in'); } catch (e) {}
+    if (ret !== 0) { try { core.FS.unlink('/out.pcm'); } catch (e) {} throw new Error('ffmpeg terminó con código ' + ret + '\n' + lastLog.slice(-12).join('\n')); }
+    const data = core.FS.readFile('/out.pcm');
+    core.FS.unlink('/out.pcm');
+    let mp3 = null;
+    if (hasCopy) { try { const m3 = core.FS.readFile('/out.mp3'); core.FS.unlink('/out.mp3'); if (m3.length > 1000) mp3 = m3.buffer; } catch (e) {} }
+    if (!data.length) throw new Error('El archivo no tiene pista de audio.\n' + lastLog.slice(-8).join('\n'));
+    send({ type: 'done', pcm: data.buffer, mp3, duration }, mp3 ? [data.buffer, mp3] : [data.buffer]);
+  } catch (e) {
+    send({ type: 'error', error: String((e && (e.message || e)) || 'Error') });
+  }
+};
+</script>
+
+<script type="text/plain" id="helper-ps1">
+# Ayudante del Transcriptor de entrevistas
+# Descarga audio y video de YouTube, X, Facebook, Instagram, Drive y otros sitios
+# usando yt-dlp, y se lo entrega a la pagina del transcriptor SOLO en esta computadora
+# (escucha unicamente en localhost). No envia nada a ningun otro lugar.
+# (Este archivo usa solo caracteres ASCII a proposito, para que Windows lo lea bien.)
+
+param(
+  [int]$Port = 47853,
+  [string]$YtDlp = '',
+  [string]$BaseDir = '',
+  [string]$StartupDir = '',
+  [string]$Origen = '',
+  [switch]$NoSetup,
+  [switch]$Instalar,
+  [switch]$Quitar,
+  [switch]$Silencioso,
+  [switch]$NoLaunch
+)
+
+$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch {}
+
+$IsWin = ($env:OS -eq 'Windows_NT')
+if ($BaseDir) { $Base = $BaseDir }
+elseif ($env:LOCALAPPDATA) { $Base = Join-Path $env:LOCALAPPDATA 'TranscriptorAyudante' }
+else { $Base = Join-Path $HOME '.transcriptor-ayudante' }
+$Tmp = Join-Path ([IO.Path]::GetTempPath()) 'TranscriptorAyudante'
+if ($YtDlp) { $YtDlpExe = $YtDlp } else { $YtDlpExe = Join-Path $Base 'yt-dlp.exe' }
+$script:YtVersion = ''
+$script:Jobs = @{}
+
+$LogFile = Join-Path $Base 'ayudante.log'
+try {
+  New-Item -ItemType Directory -Force -Path $Base | Out-Null
+  if ((Test-Path $LogFile) -and ((Get-Item $LogFile).Length -gt 200000)) { Remove-Item -Force $LogFile }
+} catch {}
+function Say($t) {
+  Write-Host $t
+  try { Add-Content -Path $LogFile -Value ((Get-Date).ToString('yyyy-MM-dd HH:mm:ss') + '  ' + $t) -Encoding UTF8 } catch {}
+}
+
+function Get-File($url, $dest) {
+  $part = "$dest.descarga"
+  Invoke-WebRequest -Uri $url -OutFile $part -UseBasicParsing
+  Move-Item -Force -Path $part -Destination $dest
+}
+
+function Quote-Arg($s) { return '"' + ($s -replace '"', '\"') + '"' }
+
+function Run-Quiet($exe, $argString, $timeoutMs) {
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+  $psi.FileName = $exe
+  $psi.Arguments = $argString
+  $psi.UseShellExecute = $false
+  $psi.CreateNoWindow = $true
+  $psi.RedirectStandardOutput = $true
+  $psi.RedirectStandardError = $true
+  $p = [System.Diagnostics.Process]::Start($psi)
+  $o = $p.StandardOutput.ReadToEndAsync()
+  $e = $p.StandardError.ReadToEndAsync()
+  if (-not $p.WaitForExit($timeoutMs)) {
+    try { $p.Kill() } catch {}
+    return @{ Code = -1; Out = '' }
+  }
+  $p.WaitForExit()
+  return @{ Code = $p.ExitCode; Out = ($o.Result + $e.Result) }
+}
+
+function Ensure-Tools {
+  New-Item -ItemType Directory -Force -Path $Base | Out-Null
+  $cfg = Join-Path $Base 'navegador.txt'
+  if (-not (Test-Path $cfg)) {
+    $txt = "# Solo si necesitas bajar videos que piden iniciar sesion (por ejemplo Instagram).`r`n" +
+           "# 1) Inicia sesion en ese sitio con Firefox.`r`n" +
+           "# 2) Escribe abajo, sin '#', la palabra: firefox`r`n" +
+           "# Deja este archivo como esta si no lo necesitas.`r`n"
+    Set-Content -Path $cfg -Value $txt -Encoding ASCII
+  }
+  if ($NoSetup) { return }
+
+  if (-not (Test-Path $YtDlpExe)) {
+    Say 'Descargando yt-dlp (solo la primera vez, unos segundos)...'
+    Get-File 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe' $YtDlpExe
+  }
+
+  $deno = Join-Path $Base 'deno.exe'
+  if (-not (Test-Path $deno)) {
+    try {
+      Say 'Descargando el motor que necesita YouTube (solo la primera vez, puede tardar un minuto)...'
+      $zip = Join-Path $Base 'deno.zip'
+      $dir = Join-Path $Base 'deno-tmp'
+      Get-File 'https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip' $zip
+      if (Test-Path $dir) { Remove-Item -Recurse -Force $dir }
+      Expand-Archive -Path $zip -DestinationPath $dir -Force
+      Copy-Item -Force (Join-Path $dir 'deno.exe') $deno
+      Remove-Item -Recurse -Force $dir
+      Remove-Item -Force $zip
+    } catch {
+      Say 'AVISO: no se pudo descargar el motor de YouTube. Otros sitios funcionaran; YouTube podria fallar.'
+    }
+  }
+}
+
+function Get-CookieArgs {
+  $c = Join-Path $Base 'cookies.txt'
+  if (Test-Path $c) { return @('--cookies', $c) }
+  $b = Join-Path $Base 'navegador.txt'
+  if (Test-Path $b) {
+    $name = Get-Content $b | Where-Object { $_.Trim() -and -not $_.Trim().StartsWith('#') } | Select-Object -First 1
+    if ($name) {
+      $name = $name.Trim().ToLower()
+      if ($name -match '^[a-z]+$') { return @('--cookies-from-browser', $name) }
+    }
+  }
+  return @()
+}
+
+function Read-Tail($path, $n) {
+  try {
+    $fs = New-Object IO.FileStream($path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+    try {
+      $len = $fs.Length
+      $take = [int][Math]::Min([long]$n, $len)
+      [void]$fs.Seek($len - $take, [IO.SeekOrigin]::Begin)
+      $buf = New-Object byte[] $take
+      $read = $fs.Read($buf, 0, $take)
+      return [Text.Encoding]::UTF8.GetString($buf, 0, $read)
+    } finally { $fs.Dispose() }
+  } catch { return '' }
+}
+
+function Read-Percent($path) {
+  $t = Read-Tail $path 4096
+  $m = [regex]::Matches($t, '\[download\]\s+(\d+(?:\.\d+)?)%')
+  if ($m.Count -gt 0) { return [double]$m[$m.Count - 1].Groups[1].Value }
+  return $null
+}
+
+function Read-Title($dir) {
+  $p = Join-Path $dir 'title.txt'
+  if (Test-Path $p) {
+    try {
+      $t = [IO.File]::ReadAllText($p, [Text.Encoding]::UTF8)
+      $t = ($t -split "`n")[0].Trim()
+      if ($t) { return $t }
+    } catch {}
+  }
+  return ''
+}
+
+function New-Download($url) {
+  $id = [Guid]::NewGuid().ToString('N').Substring(0, 12)
+  $dir = Join-Path $Tmp $id
+  New-Item -ItemType Directory -Force -Path $dir | Out-Null
+  $out = Join-Path $dir 'out.log'
+  $err = Join-Path $dir 'err.log'
+  $a = New-Object System.Collections.ArrayList
+  [void]$a.AddRange(@('-f', 'bestaudio/best', '--no-playlist', '--playlist-items', '1', '--no-part', '--no-mtime',
+      '--newline', '--no-warnings', '--no-simulate', '--retries', '5', '--socket-timeout', '30',
+      '-o', (Join-Path $dir 'media.%(ext)s'),
+      '--print-to-file', '%(title)s', (Join-Path $dir 'title.txt')))
+  foreach ($x in @(Get-CookieArgs)) { [void]$a.Add($x) }
+  [void]$a.Add('--')
+  [void]$a.Add($url)
+  $argString = (($a | ForEach-Object { Quote-Arg ([string]$_) }) -join ' ')
+  $sp = @{ FilePath = $YtDlpExe; ArgumentList = $argString; RedirectStandardOutput = $out; RedirectStandardError = $err; PassThru = $true }
+  if ($IsWin) { $sp['WindowStyle'] = 'Hidden' } else { $sp['NoNewWindow'] = $true }
+  $proc = Start-Process @sp
+  $null = $proc.Handle   # necesario en Windows PowerShell 5.1 para poder leer el codigo de salida
+  $script:Jobs[$id] = @{ Id = $id; Dir = $dir; Out = $out; Err = $err; Proc = $proc; Url = $url; Started = (Get-Date) }
+  Say ("Descargando: " + $url)
+  return $id
+}
+
+function Map-Error($text) {
+  $t = $text.ToLower()
+  if ($t -match 'sign in to confirm|not a bot') {
+    return @{ code = 'bot'; message = 'YouTube pidio confirmar que no eres un robot. Prueba de nuevo en unos minutos, o inicia sesion en YouTube con Firefox y escribe firefox en el archivo navegador.txt del ayudante.' }
+  }
+  if ($t -match 'login required|log in|logged-in|--cookies|rate-limit|empty media response') {
+    return @{ code = 'login'; message = 'Ese sitio pide iniciar sesion para ver este video (es normal en Instagram). Inicia sesion en ese sitio con Firefox y escribe firefox en el archivo navegador.txt del ayudante. Si el video es privado, no se podra descargar.' }
+  }
+  if ($t -match 'private video|members-only|this video is private') {
+    return @{ code = 'private'; message = 'Ese video es privado o solo para miembros.' }
+  }
+  if ($t -match 'unsupported url') {
+    return @{ code = 'unsupported'; message = 'Ese enlace no lleva a un video o audio que se pueda descargar. Revisa que sea el enlace del video.' }
+  }
+  if ($t -match 'video unavailable|not available|has been removed|does not exist|http error 404') {
+    return @{ code = 'unavailable'; message = 'Ese video no esta disponible (fue borrado, es privado o no esta disponible en tu pais).' }
+  }
+  if ($t -match 'http error 403') {
+    return @{ code = 'blocked'; message = 'El sitio rechazo la descarga (error 403). Prueba de nuevo en unos minutos.' }
+  }
+  return @{ code = 'generic'; message = 'No se pudo descargar ese enlace.' }
+}
+
+function Get-Status($id) {
+  $j = $script:Jobs[$id]
+  if (-not $j) { return @{ state = 'error'; code = 'nojob'; message = 'No se encontro esa descarga.' } }
+  if (-not $j.Proc.HasExited) {
+    return @{ state = 'running'; percent = (Read-Percent $j.Out); title = (Read-Title $j.Dir) }
+  }
+  $j.Proc.WaitForExit()
+  if ($j.Proc.ExitCode -eq 0) {
+    $f = Get-ChildItem -Path $j.Dir -File | Where-Object { $_.BaseName -eq 'media' -and $_.Extension -notin @('.part', '.ytdl', '.temp') } | Sort-Object Length -Descending | Select-Object -First 1
+    if ($f) {
+      $title = Read-Title $j.Dir
+      if (-not $title) { $title = '' }
+      return @{ state = 'done'; title = $title; ext = $f.Extension.TrimStart('.'); size = $f.Length }
+    }
+  }
+  $detail = ((Read-Tail $j.Err 3000) + "`n" + (Read-Tail $j.Out 1500)).Trim()
+  $lines = @(($detail -split "`n") | Where-Object { $_.Trim() -ne '' } | Select-Object -Last 4)
+  $short = ($lines -join ' | ')
+  if ($short.Length -gt 600) { $short = $short.Substring(0, 600) }
+  $m = Map-Error $detail
+  return @{ state = 'error'; code = $m.code; message = $m.message; detail = $short }
+}
+
+function Remove-Job2($id) {
+  $j = $script:Jobs[$id]
+  if (-not $j) { return }
+  try { if (-not $j.Proc.HasExited) { $j.Proc.Kill() } } catch {}
+  try { Remove-Item -Recurse -Force $j.Dir -ErrorAction SilentlyContinue } catch {}
+  $script:Jobs.Remove($id)
+}
+
+function Cleanup-Old {
+  foreach ($id in @($script:Jobs.Keys)) {
+    $j = $script:Jobs[$id]
+    if ($j -and ((Get-Date) - $j.Started).TotalHours -gt 3) { Remove-Job2 $id }
+  }
+}
+
+function Add-Cors($r) {
+  $r.Headers['Access-Control-Allow-Origin'] = '*'
+  $r.Headers['Access-Control-Allow-Headers'] = 'X-Transcriptor, Content-Type'
+  $r.Headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+  $r.Headers['Access-Control-Allow-Private-Network'] = 'true'
+  $r.Headers['Access-Control-Expose-Headers'] = 'Content-Length'
+  $r.Headers['Access-Control-Max-Age'] = '600'
+  $r.Headers['Cache-Control'] = 'no-store'
+}
+
+function Send-Json($ctx, $obj, $status = 200) {
+  $json = ConvertTo-Json -InputObject $obj -Compress -Depth 4
+  $bytes = [Text.Encoding]::UTF8.GetBytes($json)
+  $r = $ctx.Response
+  $r.StatusCode = $status
+  $r.ContentType = 'application/json; charset=utf-8'
+  Add-Cors $r
+  $r.ContentLength64 = $bytes.Length
+  $r.OutputStream.Write($bytes, 0, $bytes.Length)
+  $r.Close()
+}
+
+function Handle-Request($ctx) {
+  $req = $ctx.Request
+  $path = $req.Url.AbsolutePath
+  if ($req.HttpMethod -eq 'OPTIONS') {
+    $ctx.Response.StatusCode = 204
+    Add-Cors $ctx.Response
+    $ctx.Response.Close()
+    return
+  }
+  # Solo se atiende a la pagina del transcriptor abierta en esta computadora
+  $hostOk = ([string]$req.Headers['Host']) -match '^(localhost|127\.0\.0\.1)(:\d+)?$'
+  $origin = [string]$req.Headers['Origin']
+  $originOk = (-not $origin) -or ($origin -match '^(null|file://|https?://(localhost|127\.0\.0\.1)(:\d+)?)$') -or ($script:Sitios -contains $origin.ToLower())
+  $hdrOk = ([string]$req.Headers['X-Transcriptor']) -eq '1'
+  if (-not ($hostOk -and $originOk -and $hdrOk)) {
+    Send-Json $ctx @{ error = 'forbidden' } 403
+    return
+  }
+
+  switch ($path) {
+    '/ping' {
+      Send-Json $ctx @{
+        ok = $true; app = 'transcriptor-ayudante'; version = 1
+        ytdlp = $script:YtVersion
+        deno = [bool](Test-Path (Join-Path $Base 'deno.exe'))
+        cookies = ((@(Get-CookieArgs)).Count -gt 0)
+        folder = $Base
+      }
+    }
+    '/start' {
+      $u = [string]$req.QueryString['url']
+      if ($u -notmatch '^https?://[^\s"]{4,2000}$') { Send-Json $ctx @{ error = 'url' } 400; return }
+      if ($script:Jobs.Count -ge 6) { Cleanup-Old }
+      $id = New-Download $u
+      Send-Json $ctx @{ id = $id }
+    }
+    '/status' {
+      Send-Json $ctx (Get-Status ([string]$req.QueryString['id']))
+    }
+    '/file' {
+      $j = $script:Jobs[[string]$req.QueryString['id']]
+      $f = $null
+      if ($j -and $j.Proc.HasExited -and $j.Proc.ExitCode -eq 0) {
+        $f = Get-ChildItem -Path $j.Dir -File | Where-Object { $_.BaseName -eq 'media' -and $_.Extension -notin @('.part', '.ytdl', '.temp') } | Sort-Object Length -Descending | Select-Object -First 1
+      }
+      if (-not $f) { Send-Json $ctx @{ error = 'nofile' } 404; return }
+      $r = $ctx.Response
+      $r.StatusCode = 200
+      $r.ContentType = 'application/octet-stream'
+      Add-Cors $r
+      $fs = [IO.File]::OpenRead($f.FullName)
+      try {
+        $r.ContentLength64 = $fs.Length
+        $fs.CopyTo($r.OutputStream)
+      } finally { $fs.Dispose(); try { $r.Close() } catch {} }
+    }
+    '/borrar' {
+      Remove-Job2 ([string]$req.QueryString['id'])
+      Send-Json $ctx @{ ok = $true }
+    }
+    default { Send-Json $ctx @{ error = 'notfound' } 404 }
+  }
+}
+
+# Sitios web autorizados a usar el ayudante (ademas de la pagina abierta desde un archivo)
+$SitiosFile = Join-Path $Base 'sitios.txt'
+function Read-Sitios {
+  $out = @()
+  try {
+    if (Test-Path $SitiosFile) {
+      foreach ($l in (Get-Content $SitiosFile)) { $t = ([string]$l).Trim().ToLower(); if ($t -match '^https://[a-z0-9.-]+(:\d+)?$') { $out += $t } }
+    }
+  } catch {}
+  return ,$out
+}
+function Add-Sitio($o) {
+  $t = ([string]$o).Trim().ToLower()
+  if ($t -notmatch '^https://[a-z0-9.-]+(:\d+)?$') { return }
+  $cur = Read-Sitios
+  if ($cur -notcontains $t) { Add-Content -Path $SitiosFile -Value $t -Encoding ASCII; Say ('Sitio autorizado: ' + $t) }
+}
+$script:Sitios = Read-Sitios
+
+# ------------------------------------------------------------------ Modos
+function Test-YtDlp {
+  $v = Run-Quiet $YtDlpExe '--version' 30000
+  if ($v.Code -ne 0) {
+    Say ''
+    Say 'yt-dlp no pudo iniciar en esta computadora.'
+    Say 'Si Windows o el antivirus lo bloquearon, permitelo e intenta de nuevo.'
+    Say ('Detalle: ' + $v.Out.Trim())
+    return $false
+  }
+  $script:YtVersion = $v.Out.Trim()
+  return $true
+}
+
+function Stop-Running {
+  # apaga las copias del ayudante que esten corriendo (por ejemplo la de segundo plano)
+  try {
+    Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" |
+      Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -and $_.CommandLine -like '*ayudante.ps1*' -and $_.CommandLine -notlike '*-Quitar*' -and $_.CommandLine -notlike '*-Instalar*' } |
+      ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+  } catch {}
+}
+
+function Get-StartupFile {
+  if ($StartupDir) { $d = $StartupDir } else { $d = [Environment]::GetFolderPath('Startup') }
+  return (Join-Path $d 'TranscriptorAyudante.vbs')
+}
+
+function Test-Alive {
+  try {
+    $r = Invoke-WebRequest -Uri "http://localhost:$Port/ping" -Headers @{ 'X-Transcriptor' = '1' } -UseBasicParsing -TimeoutSec 2
+    return ($r.Content -match 'transcriptor-ayudante')
+  } catch { return $false }
+}
+
+function Do-Instalar {
+  Ensure-Tools
+  if (-not (Test-Path $YtDlpExe)) { Say 'No se encontro yt-dlp.'; return $false }
+  if (-not (Test-YtDlp)) { return $false }
+  if ($Origen) { Add-Sitio $Origen }
+
+  # Copia fija del programa, para que siga funcionando aunque borres la carpeta del .zip
+  $dest = Join-Path $Base 'ayudante.ps1'
+  if ($PSCommandPath -and ($PSCommandPath -ne $dest)) { Copy-Item -Force -Path $PSCommandPath -Destination $dest }
+  $q = "@echo off`r`ntitle Quitar ayudante del transcriptor`r`ncd /d `"%~dp0`"`r`npowershell -NoProfile -ExecutionPolicy Bypass -File `"%~dp0ayudante.ps1`" -Quitar`r`necho.`r`npause`r`n"
+  Set-Content -Path (Join-Path $Base 'Quitar ayudante.bat') -Value $q -Encoding ASCII
+
+  # Entrada en la carpeta de inicio de Windows: arranca solo, sin ventana
+  $vbsPath = Get-StartupFile
+  New-Item -ItemType Directory -Force -Path (Split-Path -Parent $vbsPath) | Out-Null
+  $vbs = 'Set s = CreateObject("WScript.Shell")' + "`r`n" +
+         's.Run "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""' + $dest + '"" -Silencioso", 0, False' + "`r`n"
+  Set-Content -Path $vbsPath -Value $vbs -Encoding Unicode
+
+  # Se reinicia ahora mismo en segundo plano (sin esperar a reiniciar la computadora)
+  Stop-Running
+  if ($NoLaunch) { return $true }
+  Start-Sleep -Milliseconds 700
+  Start-Process -FilePath 'wscript.exe' -ArgumentList ('"' + $vbsPath + '"')
+  Say 'Iniciando el ayudante en segundo plano...'
+  for ($i = 0; $i -lt 25; $i++) {
+    Start-Sleep -Seconds 1
+    if (Test-Alive) { return $true }
+  }
+  Say 'AVISO: el ayudante no respondio todavia. Revisa el archivo ayudante.log en la carpeta: ' + $Base
+  return $true
+}
+
+if ($Quitar) {
+  Say ''
+  Say '  QUITAR EL AYUDANTE DEL TRANSCRIPTOR'
+  Say '  -----------------------------------'
+  Stop-Running
+  $vbsPath = Get-StartupFile
+  if (Test-Path $vbsPath) { Remove-Item -Force $vbsPath }
+  Say ''
+  Say '  Listo: el ayudante ya no arranca solo y se apago.'
+  Say ('  Si quieres liberar espacio, puedes borrar esta carpeta: ' + $Base)
+  exit 0
+}
+
+if ($Instalar) {
+  Say ''
+  Say '  INSTALAR EL AYUDANTE DEL TRANSCRIPTOR'
+  Say '  -------------------------------------'
+  $ok = $false
+  try { $ok = Do-Instalar } catch {
+    Say ''
+    Say 'No se pudo instalar. Revisa tu conexion a internet y vuelve a intentarlo.'
+    Say ('Detalle: ' + $_.Exception.Message)
+  }
+  if (-not $ok) { exit 1 }
+  Say ''
+  Say '  ======================================================'
+  Say '   LISTO. El ayudante ya esta funcionando y arrancara solo'
+  Say '   cada vez que enciendas la computadora, sin ventanas.'
+  Say '   Ya puedes cerrar esta ventana y volver al transcriptor.'
+  Say '  ======================================================'
+  exit 0
+}
+
+# ------------------------------------------------------------------ Servidor
+Say ''
+Say '  AYUDANTE DEL TRANSCRIPTOR DE ENTREVISTAS'
+Say '  ----------------------------------------'
+try {
+  Ensure-Tools
+} catch {
+  Say ''
+  Say 'No se pudieron descargar las herramientas. Revisa tu conexion a internet y vuelve a abrir este programa.'
+  Say ('Detalle: ' + $_.Exception.Message)
+  exit 1
+}
+if (-not (Test-Path $YtDlpExe)) { Say 'No se encontro yt-dlp.'; exit 1 }
+if (-not (Test-YtDlp)) { exit 1 }
+
+if (Test-Path $Tmp) { try { Remove-Item -Recurse -Force $Tmp -ErrorAction SilentlyContinue } catch {} }
+New-Item -ItemType Directory -Force -Path $Tmp | Out-Null
+
+$listener = New-Object System.Net.HttpListener
+$listener.Prefixes.Add("http://localhost:$Port/")
+$listener.Prefixes.Add("http://127.0.0.1:$Port/")
+try {
+  $listener.Start()
+} catch {
+  # algunas computadoras no permiten el segundo prefijo: se intenta solo con localhost
+  try {
+    $listener = New-Object System.Net.HttpListener
+    $listener.Prefixes.Add("http://localhost:$Port/")
+    $listener.Start()
+  } catch {
+    Say ''
+    if (Test-Alive) { Say 'El ayudante ya esta funcionando (probablemente en segundo plano). No necesitas abrir nada mas.' }
+    else { Say 'No se pudo iniciar el ayudante.'; Say ('Detalle: ' + $_.Exception.Message) }
+    exit 1
+  }
+}
+
+Say ''
+Say ('  yt-dlp version ' + $script:YtVersion)
+Say ('  Carpeta de configuracion: ' + $Base)
+Say ''
+Say '  ======================================================'
+Say '   AYUDANTE LISTO'
+if (-not $Silencioso) {
+  Say '   Deja esta ventana abierta mientras usas el transcriptor.'
+  Say '   Para apagarlo, cierra esta ventana.'
+}
+Say '  ======================================================'
+Say ''
+
+function Start-BackgroundUpdate {
+  $marker = Join-Path $Base 'ultima-actualizacion.txt'
+  try {
+    if (Test-Path $marker) {
+      $age = (Get-Date) - (Get-Item $marker).LastWriteTime
+      if ($age.TotalHours -lt 20) { return $null }
+    }
+    $sp = @{ FilePath = $YtDlpExe; ArgumentList = '-U'; PassThru = $true
+             RedirectStandardOutput = (Join-Path $Base 'actualizar.log'); RedirectStandardError = (Join-Path $Base 'actualizar-err.log') }
+    if ($IsWin) { $sp['WindowStyle'] = 'Hidden' } else { $sp['NoNewWindow'] = $true }
+    $p = Start-Process @sp
+    $null = $p.Handle
+    return $p
+  } catch { return $null }
+}
+$script:UpdProc = $null
+if (-not $NoSetup -or $YtDlp) { $script:UpdProc = Start-BackgroundUpdate }
+
+$last = Get-Date
+try {
+  $task = $listener.GetContextAsync()
+  while ($true) {
+    if ($task.Wait(1000)) {
+      $ctx = $task.Result
+      $task = $listener.GetContextAsync()
+      try { Handle-Request $ctx }
+      catch {
+        try { Send-Json $ctx @{ error = 'internal'; message = $_.Exception.Message } 500 } catch { try { $ctx.Response.Abort() } catch {} }
+      }
+    }
+    if ($script:UpdProc -and $script:UpdProc.HasExited) {
+      if ($script:UpdProc.ExitCode -eq 0) { try { Set-Content -Path (Join-Path $Base 'ultima-actualizacion.txt') -Value (Get-Date).ToString('s') -Encoding ASCII } catch {} }
+      $v = Run-Quiet $YtDlpExe '--version' 30000
+      if ($v.Code -eq 0) { $script:YtVersion = $v.Out.Trim() }
+      $script:UpdProc = $null
+    }
+    if (((Get-Date) - $last).TotalSeconds -gt 60) { Cleanup-Old; $last = Get-Date }
+  }
+} finally {
+  try { $listener.Stop() } catch {}
+  foreach ($id in @($script:Jobs.Keys)) { Remove-Job2 $id }
+}
+</script>
+<script type="text/plain" id="helper-bat-install">
+@echo off
+title Instalar ayudante del transcriptor
+cd /d "%~dp0"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0ayudante.ps1" -Instalar
+echo.
+pause
+</script>
+<script type="text/plain" id="helper-bat-remove">
+@echo off
+title Quitar ayudante del transcriptor
+cd /d "%~dp0"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0ayudante.ps1" -Quitar
+echo.
+pause
+</script>
+<script type="text/plain" id="helper-bat-run">
+@echo off
+title Ayudante del transcriptor
+cd /d "%~dp0"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0ayudante.ps1"
+echo.
+echo El ayudante se cerro. Si aparecio un error arriba, copialo y mandalo para revisarlo.
+pause
+</script>
+
+<script>
+// Cuentas en internet: pega aquí la dirección y la clave pública (anon) de tu proyecto de Supabase.
+// Con los dos valores vacíos, la página funciona sin cuentas y guarda todo solo en esta computadora.
+window.TRANSCRIPTOR_NUBE = { url: '', clave: '' };
+</script>
+<script>
+(() => {
+'use strict';
+// ---------------------------------------------------------------- Config
+const TF_URL = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/transformers.min.js';
+const FF_BASES = [
+  'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd/',
+  'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd/'
+];
+const SR = 16000;
+const MODELS = {
+  base: {
+    webgpu: [['onnx-community/whisper-base', { encoder_model: 'fp32', decoder_model_merged: 'q4' }]],
+    wasm:   [['Xenova/whisper-base', 'q8'], ['onnx-community/whisper-base', 'q8']]
+  },
+  small: {
+    webgpu: [['onnx-community/whisper-small', { encoder_model: 'fp32', decoder_model_merged: 'q4' }],
+             ['Xenova/whisper-small', { encoder_model: 'fp32', decoder_model_merged: 'q4' }]],
+    wasm:   [['Xenova/whisper-small', 'q8'], ['onnx-community/whisper-small', 'q8']]
+  },
+  turbo: {
+    webgpu: [['onnx-community/whisper-large-v3-turbo', { encoder_model: 'fp16', decoder_model_merged: 'q4' }]],
+    wasm:   []
+  }
+};
+// Modelos que reconocen la voz de cada persona
+const SPK_MODELS = [
+  { id: 'onnx-community/wespeaker-voxceleb-resnet34-LM', dtype: 'fp32', kind: 'wespeaker' },
+  { id: 'Xenova/wavlm-base-plus-sv', dtype: 'q8', kind: 'wavlm' }
+];
+// tight: parecido mínimo para agrupar de entrada; merge: parecido mínimo para unir dos grupos (modo automático)
+const SPK_PARAMS = { wespeaker: { tight: 0.6, merge: 0.35 }, wavlm: { tight: 0.93, merge: 0.86 } };
+const QUALITY_INFO = {
+  base: 'Rápida: descarga más liviana. Sirve para audios claros; comete más errores con ruido o acentos.',
+  small: 'Equilibrada: buena precisión en español. Es la recomendada para entrevistas.',
+  turbo: 'Máxima: la más precisa, ideal para audios difíciles. La primera vez descarga más de 1 GB.'
+};
+const SOCIAL_HOSTS = /(^|\.)(youtube\.com|youtu\.be|facebook\.com|fb\.watch|fb\.com|instagram\.com|x\.com|twitter\.com|t\.co|tiktok\.com|drive\.google\.com|docs\.google\.com|vimeo\.com|twitch\.tv|soundcloud\.com|dailymotion\.com)$/i;
+const DIRECT_EXT = /\.(mp3|m4a|aac|wav|ogg|oga|opus|flac|mp4|mov|webm|mkv|m4v|wma|amr|3gp)$/i;
+const SITE_ORIGIN = /^https:$/.test(location.protocol) ? location.origin : '';
+const HELPER_PORT = 47853;
+const HELPER_BASES = ['http://localhost:' + HELPER_PORT, 'http://127.0.0.1:' + HELPER_PORT];
+
+// ---------------------------------------------------------------- Utils
+const $ = (id) => document.getElementById(id);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const mb = (b) => (b / 1048576).toFixed(0) + ' MB';
+function fmtT(t, long) {
+  t = Math.max(0, Math.floor(t));
+  const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+  const p = (n) => String(n).padStart(2, '0');
+  return (long || h) ? `${h}:${p(m)}:${p(s)}` : `${p(m)}:${p(s)}`;
+}
+function fmtDur(sec) {
+  sec = Math.round(sec);
+  if (sec < 60) return sec + ' s';
+  if (sec < 600) { const m = Math.floor(sec / 60), s = sec % 60; return s ? `${m} min ${s} s` : `${m} min`; }
+  let h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
+  if (m === 60) { h++; m = 0; }
+  return h ? (m ? `${h} h ${m} min` : `${h} h`) : `${m} min`;
+}
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2200); }
+async function copyText(s) {
+  try { await navigator.clipboard.writeText(s); return true; }
+  catch (e) {
+    const ta = document.createElement('textarea'); ta.value = s; document.body.appendChild(ta); ta.select();
+    let ok = false; try { ok = document.execCommand('copy'); } catch (e2) {} ta.remove(); return ok;
+  }
+}
+function download(name, blob) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+}
+function makeWorker(id) {
+  return new Worker(URL.createObjectURL(new Blob([$(id).textContent], { type: 'text/javascript' })));
+}
+const baseName = (n) => n.replace(/\.[^.]+$/, '');
+const safeName = (n) => n.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'transcripcion';
+
+// ---------------------------------------------------------------- Estado
+const S = {
+  helper: null, helperBase: null, helperChecked: false,
+  mode: 'file', pick: null, file: null, name: '', gpu: null, f16: false, blocked: false,
+  running: false, paused: false, stopped: false, done: false,
+  rows: [], names: {}, duration: 0, longFmt: false,
+  key: null, segs: null, next: 0, segCount: 0,
+  device: null, modelId: null,
+  diar: false, nspk: 'auto', spkKind: null, embFails: 0
+};
+
+// ---------------------------------------------------------------- Guardado (IndexedDB)
+const DB = { db: null, mem: {} };
+let META = {}; // key -> resumen de cada transcripción
+function idb(store, mode, op) {
+  return new Promise((res, rej) => {
+    const t = DB.db.transaction(store, mode); const r = op(t.objectStore(store));
+    t.oncomplete = () => res(r ? r.result : undefined); t.onerror = t.onabort = () => rej(t.error);
+  });
+}
+async function dbOpen() {
+  try {
+    DB.db = await new Promise((res, rej) => {
+      const r = indexedDB.open(NUBE.on && NUBE.ses ? 'transcriptor_' + NUBE.ses.uid : 'transcriptor', 2);
+      r.onupgradeneeded = () => { const d = r.result; for (const n of ['meta', 'data', 'audio']) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n); };
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); r.onblocked = () => rej(new Error('bloqueado'));
+    });
+    const all = await idb('meta', 'readonly', (s) => s.getAll());
+    for (const m of all) META[m.key] = m;
+  } catch (e) { console.warn('Sin IndexedDB', e); DB.db = null; }
+  // Pasar al nuevo formato lo guardado por la versión anterior
+  try {
+    const old = JSON.parse(localStorage.getItem('transcriptor.v1') || 'null');
+    if (old) {
+      for (const k in old) {
+        const e = old[k]; if (!e || !e.rows || META[k]) continue;
+        await dbPut({ key: k, name: e.name, updated: e.updated, done: !!e.done, next: e.next, segCount: e.segCount, duration: e.duration, src: 'file' }, { rows: e.rows, names: {} });
+      }
+      localStorage.removeItem('transcriptor.v1');
+    }
+  } catch (e) {}
+}
+async function dbPut(meta, data, quiet) {
+  META[meta.key] = meta;
+  if (!quiet) cloudMark(meta.key);
+  if (!DB.db) { DB.mem[meta.key] = data; return; }
+  try {
+    await new Promise((res, rej) => {
+      const t = DB.db.transaction(['meta', 'data'], 'readwrite');
+      t.objectStore('meta').put(meta, meta.key); t.objectStore('data').put(data, meta.key);
+      t.oncomplete = res; t.onerror = t.onabort = () => rej(t.error);
+    });
+  } catch (e) { console.warn('No se pudo guardar', e); DB.mem[meta.key] = data; }
+}
+async function dbGet(key) {
+  if (DB.mem[key]) return DB.mem[key];
+  if (!DB.db) return null;
+  try { return await idb('data', 'readonly', (s) => s.get(key)); } catch (e) { return null; }
+}
+async function dbDel(key, quiet) {
+  delete META[key]; delete DB.mem[key];
+  if (!quiet) cloudDelete(key);
+  if (!DB.db) return;
+  try {
+    await new Promise((res, rej) => {
+      const t = DB.db.transaction(['meta', 'data', 'audio'], 'readwrite');
+      t.objectStore('meta').delete(key); t.objectStore('data').delete(key); t.objectStore('audio').delete(key);
+      t.oncomplete = res; t.onerror = t.onabort = () => rej(t.error);
+    });
+  } catch (e) {}
+}
+const MAX_ORIGINAL = 300 * 1048576; // si no hay copia liviana, se guarda el original solo hasta este tamaño
+async function dbPutAudio(key, blob) {
+  if (!DB.db || !key || !blob) return false;
+  try { await idb('audio', 'readwrite', (s) => s.put(blob, key)); if (META[key]) META[key].audio = true; return true; }
+  catch (e) { console.warn('No se pudo guardar el audio', e); return false; }
+}
+async function dbGetAudio(key) {
+  if (!DB.db) return null;
+  try { return (await idb('audio', 'readonly', (s) => s.get(key))) || null; } catch (e) { return null; }
+}
+function saveProgress() {
+  if (!S.key) return;
+  const meta = { key: S.key, name: S.name, updated: Date.now(), done: !!S.done, next: S.next, segCount: S.segCount,
+    duration: S.duration, src: S.key.startsWith('url|') ? 'url' : 'file', nspk: S.nspk, spkKind: S.spkKind };
+  const p = dbPut(meta, { rows: S.rows, names: S.names });
+  // conservar las 40 más recientes
+  const keys = Object.keys(META).sort((a, b) => META[b].updated - META[a].updated);
+  for (const k of keys.slice(40)) dbDel(k);
+  return p;
+}
+let saveTimer = null;
+function saveSoon() { clearTimeout(saveTimer); saveTimer = setTimeout(() => { if (!S.running) { saveProgress(); renderHistory(); } }, 700); }
+function currentKey() {
+  const q = $('quality').value, l = $('lang').value || 'auto';
+  if (S.mode === 'url') { const u = $('url').value.trim(); return u ? ['url', u, q, l].join('|') : null; }
+  const f = S.pick; return f ? [f.name, f.size, f.lastModified, q, l].join('|') : null;
+}
+
+// ---------------------------------------------------------------- Historial
+function renderHistory() {
+  const g = $('histGrid'); const keys = Object.keys(META).sort((a, b) => META[b].updated - META[a].updated);
+  if (!keys.length) { g.innerHTML = '<div class="empty">Todavía no hay transcripciones. Sube un archivo o pega un enlace para empezar.</div>'; return; }
+  g.innerHTML = keys.map((k) => {
+    const e = META[k]; const pct = e.segCount ? Math.round(100 * e.next / e.segCount) : 0;
+    const d = new Date(e.updated).toLocaleDateString('es-PE', { day: 'numeric', month: 'short' });
+    const cur = S.running && S.key === k;
+    const badge = cur ? '<span class="badge run">En curso</span>' : e.done ? '<span class="badge ok">Completado</span>' : `<span class="badge part">Avance ${pct}%</span>`;
+    return `<div class="hcard" data-open="${esc(k)}" tabindex="0" role="button">
+      <div class="hname">${esc(e.name || 'Sin nombre')}</div>
+      <button class="trash" data-del="${esc(k)}" title="Borrar esta transcripción">Borrar</button>
+      <div class="hmeta"><span>${d}</span>${e.duration ? '<span>' + fmtDur(e.duration) + '</span>' : ''}<span class="badge">${e.src === 'url' ? 'Enlace' : 'Archivo'}</span>${badge}</div></div>`;
+  }).join('');
+}
+$('histGrid').addEventListener('click', async (ev) => {
+  const del = ev.target.closest('[data-del]');
+  if (del) {
+    ev.stopPropagation();
+    if (del.dataset.sure) { const k = del.dataset.del; if (S.running && S.key === k) return toast('Esa transcripción está en curso'); await dbDel(k); if (S.key === k) S.key = null; renderHistory(); }
+    else { del.dataset.sure = '1'; del.textContent = '¿Borrar?'; del.classList.add('sure'); setTimeout(() => { del.textContent = 'Borrar'; del.classList.remove('sure'); delete del.dataset.sure; }, 3000); }
+    return;
+  }
+  const card = ev.target.closest('[data-open]'); if (card) openSaved(card.dataset.open);
+});
+$('histGrid').addEventListener('keydown', (ev) => { if (ev.key === 'Enter' && ev.target.dataset.open) openSaved(ev.target.dataset.open); });
+async function openSaved(k) {
+  if (S.running) { if (S.key === k) $('result').scrollIntoView({ behavior: 'smooth' }); else toast('Espera a que termine la transcripción actual'); return; }
+  const e = META[k]; const d = await dbGet(k); if (!e || !d) return toast('No se pudo abrir');
+  S.key = k; S.name = e.name || ''; S.rows = d.rows || []; S.names = d.names || {};
+  S.duration = e.duration || 0; S.longFmt = S.duration >= 3600; S.done = !!e.done; S.next = e.next; S.segCount = e.segCount;
+  S.nspk = e.nspk || 'auto'; S.spkKind = e.spkKind || 'wespeaker';
+  $('resultTitle').textContent = S.name;
+  if (!S.file || S.file.name !== S.name) { S.file = null; setPlayer(await dbGetAudio(k)); }
+  $('result').classList.remove('hidden'); renderRows(); $('result').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ---------------------------------------------------------------- Tarjeta gráfica
+async function detectGPU() {
+  try {
+    if (!navigator.gpu) return null;
+    const a = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+    if (!a) return null;
+    S.f16 = a.features && a.features.has('shader-f16');
+    return a;
+  } catch (e) { return null; }
+}
+function updateEngineInfo() {
+  const el = $('engineInfo'); const turbo = $('quality').querySelector('option[value=turbo]');
+  const useGPU = S.gpu && !$('forceCPU').checked;
+  $('forceCPU').parentElement.classList.toggle('hidden', !S.gpu);
+  if (useGPU) { el.className = 'hint good'; el.textContent = 'Se detectó una tarjeta gráfica compatible: la transcripción será más rápida.'; }
+  else if (S.gpu) { el.className = 'hint warnc'; el.textContent = 'Se usará solo el procesador. Funciona, pero es más lento.'; }
+  else { el.className = 'hint warnc'; el.textContent = 'No se detectó una tarjeta gráfica compatible, así que se usará el procesador. Funciona, pero es más lento: para audios de 2 horas te conviene la calidad “Rápida”, o dejarlo trabajando un buen rato.'; }
+  el.classList.add('hidden'); // el aviso del motor no se muestra en pantalla
+  turbo.disabled = !(useGPU && S.f16);
+  if (turbo.disabled && $('quality').value === 'turbo') $('quality').value = 'small';
+  $('qualityInfo').textContent = QUALITY_INFO[$('quality').value];
+}
+$('quality').addEventListener('change', () => { updateEngineInfo(); checkResume(); });
+$('lang').addEventListener('change', checkResume);
+$('forceCPU').addEventListener('change', updateEngineInfo);
+
+// ---------------------------------------------------------------- Elegir archivo o enlace
+function setMode(m) {
+  if (S.running) return;
+  S.mode = m;
+  $('tabFile').classList.toggle('on', m === 'file'); $('tabUrl').classList.toggle('on', m === 'url');
+  $('paneFile').classList.toggle('hidden', m !== 'file'); $('paneUrl').classList.toggle('hidden', m !== 'url');
+  helperPoll(m === 'url');
+  refreshStart(); checkResume();
+}
+$('tabFile').onclick = () => setMode('file'); $('tabUrl').onclick = () => setMode('url');
+function urlProblem(u) {
+  let p; try { p = new URL(u); } catch (e) { return 'Eso no parece un enlace. Debe empezar con https://'; }
+  if (!/^https?:$/.test(p.protocol)) return 'El enlace debe empezar con https://';
+  if (SOCIAL_HOSTS.test(p.hostname) && !S.helperBase) return 'Para enlaces de este sitio necesitas el programa auxiliar (mira el recuadro de abajo). Si prefieres no instalarlo, descarga el video y súbelo en la pestaña “Archivo”.';
+  return '';
+}
+function refreshStart() {
+  let ok = false;
+  if (S.mode === 'file') ok = !!S.pick;
+  else {
+    const u = $('url').value.trim(); const w = $('urlWarn');
+    const prob = u ? urlProblem(u) : ''; w.textContent = prob; w.classList.toggle('hidden', !prob);
+    ok = !!u && !prob;
+  }
+  $('startBtn').disabled = !ok || S.blocked || S.running;
+}
+$('url').addEventListener('input', () => { refreshStart(); checkResume(); });
+$('url').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !$('startBtn').disabled) $('startBtn').click(); });
+
+const drop = $('drop');
+['dragenter', 'dragover'].forEach((e) => drop.addEventListener(e, (ev) => { ev.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach((e) => drop.addEventListener(e, () => drop.classList.remove('over')));
+drop.addEventListener('drop', (ev) => { ev.preventDefault(); const f = ev.dataTransfer.files[0]; if (f) pickFile(f); });
+$('file').addEventListener('change', (ev) => { const f = ev.target.files[0]; if (f) pickFile(f); });
+function pickFile(f) {
+  if (S.running) { toast('Espera a que termine la transcripción actual'); return; }
+  S.pick = f;
+  const fi = $('fileinfo'); fi.classList.remove('hidden');
+  fi.innerHTML = `<span>📄</span><b>${esc(f.name)}</b><span class="hint" style="margin:0">${mb(f.size)}</span>`;
+  refreshStart(); checkResume();
+}
+function setPlayer(f) {
+  const p = $('player'); if (p.src) { try { URL.revokeObjectURL(p.src); } catch (e) {} }
+  if (f) { p.src = URL.createObjectURL(f); p.classList.remove('hidden'); $('linkAudio').classList.add('hidden'); }
+  else { p.removeAttribute('src'); p.load(); p.classList.add('hidden'); $('linkAudio').classList.remove('hidden'); }
+}
+$('relink').addEventListener('change', async (ev) => {
+  const f = ev.target.files[0]; if (!f) return; S.file = f; setPlayer(f);
+  if (S.key && f.size <= MAX_ORIGINAL && await dbPutAudio(S.key, f)) toast('Audio guardado con esta transcripción');
+});
+
+function checkResume() {
+  const box = $('resumeBox'); box.classList.add('hidden');
+  if (S.running || S.blocked) return;
+  const k = currentKey(); const e = k && META[k];
+  if (!e) return;
+  const pct = e.segCount ? Math.round(100 * e.next / e.segCount) : 0;
+  box.classList.remove('hidden');
+  if (e.done) {
+    box.innerHTML = `Ya transcribiste esto con la misma calidad. <div class="row-actions"><button id="rsView">Ver la transcripción guardada</button><button id="rsNew">Transcribir de nuevo</button></div>`;
+    $('rsView').onclick = () => { box.classList.add('hidden'); if (S.mode === 'file') S.file = S.pick; openSaved(k).then(() => { if (S.file) setPlayer(S.file); }); };
+  } else {
+    box.innerHTML = `Esta transcripción quedó a medias (${pct}%). ¿Quieres continuar donde quedó? <div class="row-actions"><button class="primary" id="rsGo">Continuar</button><button id="rsNew">Empezar de nuevo</button></div>`;
+    $('rsGo').onclick = () => start(true);
+  }
+  $('rsNew').onclick = async () => { await dbDel(k); box.classList.add('hidden'); renderHistory(); start(false); };
+}
+
+// ---------------------------------------------------------------- Pasos / progreso
+function step(id, state, detail) {
+  const li = $(id); li.classList.remove('active', 'done');
+  if (state) li.classList.add(state);
+  if (detail !== undefined) li.querySelector('.detail').textContent = detail;
+}
+function setBar(frac) { $('bar').style.width = Math.max(0, Math.min(100, frac * 100)).toFixed(1) + '%'; }
+function showError(msg, details) {
+  const b = $('errBox'); b.classList.remove('hidden');
+  b.innerHTML = esc(msg) + (details ? `<details><summary>Detalles técnicos</summary><pre style="white-space:pre-wrap">${esc(details)}</pre></details>` : '');
+}
+function spkNote(msg) { const b = $('spkNote'); b.textContent = msg; b.classList.toggle('hidden', !msg); }
+
+// ---------------------------------------------------------------- Programa auxiliar (yt-dlp en tu computadora)
+async function hfetch(base, path, ms) {
+  const ctl = new AbortController(); const t = ms ? setTimeout(() => ctl.abort(), ms) : null;
+  try { return await fetch(base + path, { headers: { 'X-Transcriptor': '1' }, signal: ctl.signal, cache: 'no-store' }); }
+  finally { if (t) clearTimeout(t); }
+}
+async function detectHelper() {
+  const was = !!S.helperBase, first = !S.helperChecked;
+  const order = S.helperBase ? [S.helperBase, ...HELPER_BASES.filter((b) => b !== S.helperBase)] : HELPER_BASES;
+  let found = null, denied = false;
+  for (const b of order) {
+    try { const r = await hfetch(b, '/ping', 1500); if (r.ok) { const j = await r.json(); if (j && j.app === 'transcriptor-ayudante') { found = { b, j }; break; } } else if (r.status === 403) denied = true; } catch (e) {}
+  }
+  const deniedWas = !!S.helperDenied; S.helperDenied = !found && denied;
+  if (deniedWas !== S.helperDenied) { renderHelperBox(); }
+  S.helperChecked = true;
+  S.helperBase = found ? found.b : null; S.helper = found ? found.j : null;
+  if (first || was !== !!found) { renderHelperBox(); refreshStart(); }
+  return !!found;
+}
+let helperTimer = null;
+function helperPoll(on) {
+  clearInterval(helperTimer); helperTimer = null;
+  if (!on) return;
+  renderHelperBox(); detectHelper();
+  helperTimer = setInterval(() => { if (!S.running && S.mode === 'url') detectHelper(); }, 3000);
+}
+function renderHelperBox() {
+  const box = $('helperBox'); const h = S.helper;
+  if (h) {
+    box.className = 'hidden'; box.innerHTML = '';
+  } else {
+    box.className = 'helper off';
+    box.innerHTML = `<b>${S.helperDenied ? 'El programa auxiliar está instalado, pero todavía no reconoce este sitio' : S.helperChecked ? 'Programa auxiliar no detectado' : 'Buscando el programa auxiliar…'}</b><br>
+      ${S.helperDenied ? 'Vuelve a instalarlo desde aquí (una sola vez) para autorizar esta página. ' : ''}
+      Para pegar enlaces de YouTube, X, Facebook, Instagram o Google Drive necesitas un programa pequeño que se instala una sola vez y trabaja en tu computadora (Windows).
+      <div class="row-actions" style="margin-top:10px"><button class="primary" id="dlHelper" style="font-size:15px;padding:9px 16px">Descargar programa auxiliar</button></div>
+      <div class="row-actions" style="margin-top:8px"><button id="cpHelper" style="font-size:14px;padding:8px 14px">¿No te deja descargar? Copiar comando de instalación</button></div>
+      <div id="cpHelperInfo" class="hint hidden" style="margin-top:8px"></div>
+      <details open><summary>Cómo se instala (una sola vez)</summary>
+        <ol>
+          <li>Pulsa el botón y descarga el archivo <b>ayudante-transcriptor.zip</b>.</li>
+          <li>Clic derecho sobre el .zip → <b>Extraer todo</b> (no lo abras desde dentro del .zip).</li>
+          <li>Abre la carpeta y haz doble clic en <b>Instalar ayudante</b>. Si Windows pregunta si quieres ejecutarlo, elige <b>Más información → Ejecutar de todas formas</b>.</li>
+          <li>La primera vez descarga unas herramientas (1 o 2 minutos). Cuando la ventana diga <b>LISTO</b>, ya puedes cerrarla.</li>
+          <li>Vuelve aquí: en unos segundos esta caja desaparecerá y ya podrás pegar el enlace. Si Chrome pregunta si permite conectarse a dispositivos de tu red local, pulsa <b>Permitir</b>.</li>
+        </ol>
+        <p class="hint">Desde entonces el ayudante arranca solo cada vez que enciendes la computadora, sin ventanas, y se actualiza solo. Si prefieres no instalarlo, la carpeta trae también “Iniciar ayudante (sin instalar)”, que hay que abrir cada vez.</p>
+      </details>`;
+  }
+}
+$('helperBox').addEventListener('click', (ev) => {
+  if (ev.target.closest('#dlHelper')) downloadHelper();
+  if (ev.target.closest('#cpHelper')) copyInstallCmd();
+});
+async function buildInstallCmd() {
+  // El programa se comprime (gzip) y se pasa a texto para poder pegarlo en PowerShell sin descargar ningún archivo.
+  const bytes = new TextEncoder().encode($('helper-ps1').textContent.trim().replace(/\r\n/g, '\n') + '\n');
+  const cs = new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'));
+  const gz = new Uint8Array(await new Response(cs).arrayBuffer());
+  let bin = ''; for (let i = 0; i < gz.length; i += 8192) bin += String.fromCharCode.apply(null, gz.subarray(i, i + 8192));
+  const b64 = btoa(bin);
+  return "$d=Join-Path $env:LOCALAPPDATA 'TranscriptorAyudante';New-Item -Force -ItemType Directory $d|Out-Null;" +
+    "$m=New-Object IO.MemoryStream(,[Convert]::FromBase64String('" + b64 + "'));" +
+    "$g=New-Object IO.Compression.GzipStream($m,[IO.Compression.CompressionMode]::Decompress);" +
+    "$r=New-Object IO.StreamReader($g,[Text.Encoding]::ASCII);$f=Join-Path $d 'ayudante.ps1';" +
+    "[IO.File]::WriteAllText($f,$r.ReadToEnd(),[Text.Encoding]::ASCII);" +
+    "powershell -NoProfile -ExecutionPolicy Bypass -File $f -Instalar" + (SITE_ORIGIN ? " -Origen '" + SITE_ORIGIN + "'" : "");
+}
+async function copyInstallCmd() {
+  const info = $('cpHelperInfo'); info.classList.remove('hidden');
+  let cmd;
+  try { cmd = await buildInstallCmd(); } catch (e) { info.textContent = 'No se pudo preparar el comando en este navegador. Usa Chrome o Edge actualizado.'; return; }
+  let ok = false;
+  try { await navigator.clipboard.writeText(cmd); ok = true; } catch (e) {}
+  info.innerHTML = (ok ? '<b class="ok">✓ Comando copiado.</b> ' : '<b>No pude copiarlo solo: selecciona todo el recuadro de abajo (Ctrl+A) y cópialo (Ctrl+C).</b> ') +
+    '<ol><li>Pulsa la tecla <b>Windows</b>, escribe <b>PowerShell</b> y ábrelo (la ventana azul o negra).</li>' +
+    '<li>Haz <b>clic derecho</b> dentro de la ventana (o Ctrl+V) para pegar y pulsa <b>Enter</b>.</li>' +
+    '<li>Espera 1 o 2 minutos hasta que diga <b>LISTO</b>. Después vuelve aquí: esta caja se pondrá verde.</li></ol>' +
+    '<textarea id="cmdBox" readonly rows="3" style="width:100%;font:11px monospace"></textarea>';
+  const t = $('cmdBox'); t.value = cmd; if (!ok) { t.focus(); t.select(); }
+}
+function downloadHelper() {
+  const crlf = (t) => t.trim().replace(/\r?\n/g, '\r\n') + '\r\n';
+  const leeme = '﻿Ayudante del Transcriptor de entrevistas\r\n\r\nINSTALAR (una sola vez)\r\n1. Clic derecho sobre el .zip > Extraer todo.\r\n2. Haz doble clic en "Instalar ayudante.bat".\r\n3. La primera vez descarga herramientas (1 o 2 minutos). Cuando diga LISTO, cierra la ventana.\r\n\r\nDesde ese momento el ayudante arranca solo, sin ventanas, cada vez que enciendes la computadora.\r\nYa puedes borrar el .zip y la carpeta extraida: el programa queda guardado en\r\n%LOCALAPPDATA%\\TranscriptorAyudante\r\n\r\nQUITAR\r\nAbre esa carpeta y haz doble clic en "Quitar ayudante.bat" (o usa el de este .zip).\r\n\r\nSI ALGO FALLA\r\nRevisa el archivo ayudante.log en esa misma carpeta.\r\n\r\n"Iniciar ayudante (sin instalar).bat" abre el ayudante solo mientras la ventana negra este abierta.\r\n\r\nEste programa solo escucha en tu computadora (localhost) y no envia nada a internet,\r\nsalvo las descargas de los enlaces que tu pegues.\r\n';
+  download('ayudante-transcriptor.zip', zip([
+    { name: 'Instalar ayudante.bat', data: crlf($('helper-bat-install').textContent.replace('-Instalar', '-Instalar' + (SITE_ORIGIN ? ' -Origen "' + SITE_ORIGIN + '"' : ''))) },
+    { name: 'Quitar ayudante.bat', data: crlf($('helper-bat-remove').textContent) },
+    { name: 'Iniciar ayudante (sin instalar).bat', data: crlf($('helper-bat-run').textContent) },
+    { name: 'ayudante.ps1', data: crlf($('helper-ps1').textContent) },
+    { name: 'LEEME.txt', data: leeme }
+  ], 'application/zip'));
+}
+async function fetchViaHelper(url) {
+  const b = S.helperBase;
+  step('st-audio', 'active', 'Pidiendo el video al programa auxiliar…');
+  let r, j;
+  try { r = await hfetch(b, '/start?url=' + encodeURIComponent(url), 15000); j = await r.json(); }
+  catch (e) { throw new Error('No se pudo hablar con el programa auxiliar. ¿Sigue abierta su ventana negra?'); }
+  if (!r.ok || !j.id) throw new Error('El programa auxiliar no aceptó ese enlace.');
+  const id = j.id; let st;
+  for (;;) {
+    await sleep(1000);
+    try { const rs = await hfetch(b, '/status?id=' + id, 10000); st = await rs.json(); }
+    catch (e) { throw new Error('Se perdió la conexión con el programa auxiliar. ¿Se cerró su ventana negra?'); }
+    if (st.state === 'running') {
+      step('st-audio', 'active', 'Descargando desde el enlace' + (st.title ? ' («' + st.title.slice(0, 50) + '»)' : '') + (st.percent != null ? ': ' + Math.round(st.percent) + '%' : '…'));
+      continue;
+    }
+    break;
+  }
+  if (st.state !== 'done') { const e = new Error(st.message || 'No se pudo descargar ese enlace.'); e.details = st.detail || ''; throw e; }
+  const rf = await hfetch(b, '/file?id=' + id);
+  if (!rf.ok) throw new Error('El programa auxiliar no pudo entregar el archivo.');
+  const total = +rf.headers.get('content-length') || st.size || 0; const reader = rf.body.getReader(); const parts = []; let got = 0;
+  for (;;) { const { done, value } = await reader.read(); if (done) break; parts.push(value); got += value.length;
+    step('st-audio', 'active', total ? `Recibiendo el audio: ${mb(got)} de ${mb(total)}` : `Recibiendo el audio: ${mb(got)}`); }
+  hfetch(b, '/borrar?id=' + id, 5000).catch(() => {});
+  const name = ((st.title || 'audio').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 110) || 'audio') + '.' + (st.ext || 'm4a');
+  return new File(parts, name, {});
+}
+async function getFromLink(url) {
+  let host = '', path = '';
+  try { const p = new URL(url); host = p.hostname; path = p.pathname; } catch (e) {}
+  const social = SOCIAL_HOSTS.test(host), direct = DIRECT_EXT.test(path) && !social;
+  if (!S.helperBase) await detectHelper();
+  if (direct || !S.helperBase) {
+    try { return await fetchURL(url); }
+    catch (e) { if (!S.helperBase) { if (social) throw new Error('Para enlaces de este sitio necesitas el programa auxiliar. Ábrelo y vuelve a intentarlo.'); throw e; } }
+  }
+  return await fetchViaHelper(url);
+}
+
+// ---------------------------------------------------------------- 0) Descargar desde un enlace
+async function fetchURL(url) {
+  step('st-audio', 'active', 'Descargando desde el enlace…');
+  let r;
+  try { r = await fetch(url, { mode: 'cors', credentials: 'omit' }); }
+  catch (e) {
+    const er = new Error('No se pudo descargar desde ese enlace. Lo más probable es que ese sitio no permita descargas directas desde otras páginas. Descarga el archivo a tu computadora y súbelo en la pestaña “Archivo”.');
+    er.details = String(e.message || e); throw er;
+  }
+  if (!r.ok) throw new Error(`El enlace respondió con un error (${r.status}). Revisa que esté bien copiado.`);
+  const ct = (r.headers.get('content-type') || '').toLowerCase();
+  if (/text\/html/.test(ct)) throw new Error('Ese enlace lleva a una página web, no a un archivo de audio o video. Busca el enlace directo al archivo (suele terminar en .mp3, .m4a o .mp4) o descárgalo y súbelo en la pestaña “Archivo”.');
+  const total = +r.headers.get('content-length') || 0; const reader = r.body.getReader(); const parts = []; let got = 0;
+  for (;;) { const { done, value } = await reader.read(); if (done) break; parts.push(value); got += value.length;
+    step('st-audio', 'active', total ? `Descargando desde el enlace: ${mb(got)} de ${mb(total)}` : `Descargando desde el enlace: ${mb(got)}`); }
+  let name = 'audio';
+  try { name = decodeURIComponent(new URL(r.url || url).pathname.split('/').filter(Boolean).pop() || 'audio'); } catch (e) {}
+  if (!/\.[a-z0-9]{2,5}$/i.test(name)) {
+    const ext = /mpeg|mp3/.test(ct) ? 'mp3' : /mp4|m4a|aac/.test(ct) ? 'm4a' : /ogg|opus/.test(ct) ? 'ogg' : /wav/.test(ct) ? 'wav' : /webm/.test(ct) ? 'webm' : 'bin';
+    name += '.' + ext;
+  }
+  return new File(parts, name, { type: ct.split(';')[0] || '' });
+}
+
+// ---------------------------------------------------------------- 1) Extraer audio
+let ffWorker = null;
+function extractAudio(file) {
+  return new Promise((resolve, reject) => {
+    if (!ffWorker) ffWorker = makeWorker('ff-src');
+    const w = ffWorker;
+    step('st-audio', 'active', 'Descargando el conversor de audio (solo la primera vez)…');
+    w.onmessage = ({ data: m }) => {
+      if (m.type === 'dl') step('st-audio', 'active', `Descargando el conversor de audio: ${mb(m.loaded)} de ${mb(m.total)} (solo la primera vez)`);
+      else if (m.type === 'ready') step('st-audio', 'active', 'Leyendo el archivo…');
+      else if (m.type === 'duration') { S.duration = m.duration; }
+      else if (m.type === 'progress') {
+        const d = m.duration || S.duration;
+        step('st-audio', 'active', d ? `Convirtiendo el audio: ${Math.min(100, Math.round(100 * m.time / d))}%` : `Convirtiendo el audio: ${fmtT(m.time)}`);
+      }
+      else if (m.type === 'done') { S.audioCopy = m.mp3 ? new Blob([m.mp3], { type: 'audio/mpeg' }) : null; resolve(new Int16Array(m.pcm)); }
+      else if (m.type === 'error') reject(new Error(m.error));
+    };
+    w.onerror = (e) => reject(new Error('Fallo del conversor: ' + (e.message || 'desconocido')));
+    w.postMessage({ type: 'extract', file, bases: FF_BASES });
+  });
+}
+async function decodeNative(file) {
+  step('st-audio', 'active', 'Leyendo el audio con el método alternativo…');
+  const buf = await file.arrayBuffer();
+  const ctx = new OfflineAudioContext(1, 1, SR);
+  const ab = await ctx.decodeAudioData(buf);
+  const n = ab.length, out = new Int16Array(n), chs = [];
+  for (let c = 0; c < ab.numberOfChannels; c++) chs.push(ab.getChannelData(c));
+  for (let i = 0; i < n; i++) {
+    let v = 0; for (const ch of chs) v += ch[i]; v /= chs.length;
+    out[i] = Math.max(-32768, Math.min(32767, Math.round(v * 32767)));
+  }
+  return out;
+}
+async function getPCM(file) {
+  try { return await extractAudio(file); }
+  catch (e1) {
+    console.warn('ffmpeg falló', e1);
+    try { if (ffWorker) { ffWorker.terminate(); ffWorker = null; } } catch (e) {}
+    try { return await decodeNative(file); }
+    catch (e2) {
+      const err = new Error('No se pudo leer el audio de este archivo.');
+      err.details = 'Conversor: ' + e1.message + '\n\nMétodo alternativo: ' + (e2.message || e2);
+      throw err;
+    }
+  }
+}
+
+// ---------------------------------------------------------------- 2) Modelos de voz
+let asrWorker = null, asrPending = null;
+function asrMsgHandler({ data: m }) {
+  const p = asrPending; if (!p) return;
+  if (m.type === 'dl') p.onDl && p.onDl(m);
+  else if (m.type === 'warming') p.onWarm && p.onWarm();
+  else if (m.type === 'loaded' && p.kind === 'load') { asrPending = null; p.resolve(); }
+  else if (m.type === 'spkLoaded' && p.kind === 'spk') { asrPending = null; p.resolve(m); }
+  else if (m.type === 'emb' && p.kind === 'emb') { asrPending = null; p.resolve(m); }
+  else if (m.type === 'result' && p.kind === 'run') { asrPending = null; p.resolve(m); }
+  else if (m.type === 'error') { asrPending = null; p.reject(new Error(m.error)); }
+}
+function asrCall(msg, kind, extra) {
+  return new Promise((resolve, reject) => {
+    if (!asrWorker) {
+      asrWorker = makeWorker('asr-src');
+      asrWorker.onmessage = asrMsgHandler;
+      asrWorker.onerror = (e) => { const p = asrPending; asrPending = null; if (p) p.reject(new Error('Fallo del motor de voz: ' + (e.message || 'desconocido'))); };
+    }
+    asrPending = Object.assign({ resolve, reject, kind }, extra || {});
+    msg.url = TF_URL;
+    asrWorker.postMessage(msg, msg.audio ? [msg.audio.buffer] : []);
+  });
+}
+function resetASR() { try { asrWorker && asrWorker.terminate(); } catch (e) {} asrWorker = null; asrPending = null; }
+
+function dlTracker(label) {
+  const files = {};
+  return (m) => {
+    if (!m.file) return;
+    if (m.status === 'progress' || m.status === 'done') {
+      const f = files[m.file] || (files[m.file] = { loaded: 0, total: 0 });
+      if (m.total) f.total = m.total;
+      f.loaded = m.status === 'done' ? (f.total || f.loaded) : (m.loaded || 0);
+      let L = 0, Tt = 0; for (const k in files) { L += files[k].loaded; Tt += files[k].total; }
+      if (Tt > 2e6) step('st-model', 'active', `${label}: ${mb(L)} de ${mb(Tt)} (la primera vez; luego queda guardado)`);
+    }
+  };
+}
+async function loadModel(quality, lang, preferGPU) {
+  const onDl = dlTracker('Descargando el modelo de voz');
+  const onWarm = () => step('st-model', 'active', 'Preparando el modelo…');
+  const tries = [];
+  if (preferGPU) for (const c of MODELS[quality].webgpu) tries.push(['webgpu', c]);
+  for (const c of (MODELS[quality].wasm.length ? MODELS[quality].wasm : MODELS.small.wasm)) tries.push(['wasm', c]);
+  const errors = [];
+  for (const [device, [id, dtype]] of tries) {
+    step('st-model', 'active', 'Conectando…');
+    try {
+      await asrCall({ type: 'load', id, dtype, device, language: lang }, 'load', { onDl, onWarm });
+      S.device = device; S.modelId = id;
+      if (S.diar) await loadSpeakers();
+      return;
+    } catch (e) {
+      errors.push(`${id} (${device}): ${e.message}`);
+      console.warn('Modelo falló', id, device, e);
+      resetASR();
+    }
+  }
+  const err = new Error('No se pudo cargar el modelo de voz. Revisa tu conexión a internet y vuelve a intentarlo.');
+  err.details = errors.join('\n');
+  throw err;
+}
+// El modelo de oradores es opcional: si falla, la transcripción sigue sin oradores
+async function loadSpeakers() {
+  step('st-model', 'active', 'Cargando el modelo que distingue las voces…');
+  try {
+    const m = await asrCall({ type: 'loadSpk', candidates: SPK_MODELS }, 'spk', { onDl: dlTracker('Descargando el modelo que distingue las voces') });
+    S.spkKind = m.kind; S.embFails = 0;
+  } catch (e) {
+    console.warn('Modelo de oradores falló', e);
+    S.diar = false;
+    spkNote('No se pudo cargar el modelo que distingue las voces, así que esta transcripción saldrá sin oradores. Detalle: ' + e.message);
+  }
+}
+
+// ---------------------------------------------------------------- 3) Segmentar por silencios
+function segment(pcm) {
+  const F = 320; const nF = Math.floor(pcm.length / F); const rms = new Float32Array(nF);
+  for (let f = 0; f < nF; f++) {
+    let s = 0; const o = f * F;
+    for (let i = 0; i < F; i++) { const v = pcm[o + i] / 32768; s += v * v; }
+    rms[f] = Math.sqrt(s / F);
+  }
+  const sorted = Float32Array.from(rms).sort();
+  const floor = sorted[Math.floor(sorted.length * 0.1)] || 0;
+  const med = sorted[Math.floor(sorted.length * 0.5)] || 0;
+  const thr = Math.max(0.004, Math.min(floor * 3, med * 0.5));
+  const pre = new Float64Array(nF + 1); for (let f = 0; f < nF; f++) pre[f + 1] = pre[f] + rms[f];
+  const MIN = 15 * 50, MAX = 28 * 50, WIN = 10;
+  const segs = []; let a = 0;
+  while (a < nF) {
+    let b;
+    if (nF - a <= MAX) b = nF;
+    else {
+      let best = a + MAX, bestV = Infinity;
+      for (let f = a + MIN; f + WIN <= a + MAX; f++) { const v = pre[f + WIN] - pre[f]; if (v < bestV) { bestV = v; best = f + (WIN >> 1); } }
+      b = best;
+    }
+    let voiced = 0; for (let f = a; f < b; f++) if (rms[f] > thr) voiced++;
+    segs.push({ s: a * F, e: (b === nF ? pcm.length : b * F), silent: voiced < 15 });
+    a = b;
+  }
+  return segs;
+}
+
+// ---------------------------------------------------------------- Limpieza del texto
+const JUNK = /^(?:\[?m[uú]sica\]?|♪+|gracias por ver(?: el v[ií]deo)?|suscr[ií]bete(?: al canal)?|thank you(?: for watching)?|\.\.\.|…)$/i;
+function cleanText(t) {
+  if (!t) return '';
+  t = t.replace(/[^.!?]*amara\.org[^.!?]*[.!?]?/gi, ' ');
+  t = t.replace(/subt[ií]tul(?:os|ado|ación)[^.!?]{0,60}(?:comunidad|por )[^.!?]*[.!?]?/gi, ' ');
+  t = t.replace(/\b(\S+)(?:\s+\1\b){4,}/gi, '$1');
+  t = t.replace(/(.{6,80}?)(?:[\s,.]*\1){3,}/g, '$1');
+  t = t.replace(/\s+/g, ' ').trim();
+  const bare = t.replace(/[¡!¿?.,\s]+/g, ' ').trim();
+  if (!bare || JUNK.test(bare)) return '';
+  return t;
+}
+function looksBroken(t) {
+  const s = (t || '').replace(/\s/g, '');
+  if (s.length < 12) return false;
+  if (/^[!¡?¿.,…\-]+$/.test(s)) return true;
+  return new Set(s).size <= 2;
+}
+
+// ---------------------------------------------------------------- Oradores: huella de voz de cada fragmento
+function dot(a, b) { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; }
+async function embedSlice(pcm, t0, t1, lo, hi) {
+  if (!S.diar) return null;
+  let a = t0, b = Math.min(t1, t0 + 10);
+  if (b - a < 1.5) { const mid = (a + b) / 2; a = Math.max(lo, mid - 0.75); b = Math.min(hi, a + 1.5); a = Math.max(lo, b - 1.5); }
+  const s = Math.max(0, Math.floor(a * SR)), e = Math.min(pcm.length, Math.floor(b * SR));
+  if (e - s < SR * 0.4) return null;
+  const audio = new Float32Array(e - s);
+  for (let i = 0; i < audio.length; i++) audio[i] = pcm[s + i] / 32768;
+  try { const m = await asrCall({ type: 'embed', audio }, 'emb'); S.embFails = 0; return m.v; }
+  catch (err) {
+    console.warn('Huella de voz falló', err);
+    if (++S.embFails >= 4) { S.diar = false; spkNote('El modelo que distingue las voces dejó de responder; el resto de la transcripción saldrá sin oradores nuevos.'); }
+    return null;
+  }
+}
+function mergeEmb(a, b) {
+  if (!a.emb || !b.emb) { a.emb = a.emb || b.emb; a.w = (a.w || 0) + (b.w || 0); return; }
+  const wa = Math.min(a.w || 1, 10), wb = Math.min(b.w || 1, 10); const v = new Float32Array(a.emb.length); let n = 0;
+  for (let i = 0; i < v.length; i++) { v[i] = a.emb[i] * wa + b.emb[i] * wb; n += v[i] * v[i]; }
+  n = Math.sqrt(n) || 1; for (let i = 0; i < v.length; i++) v[i] /= n;
+  a.emb = v; a.w = (a.w || 0) + (b.w || 0);
+}
+
+// ---------------------------------------------------------------- Oradores: agrupar las voces
+function cluster() {
+  const rows = S.rows, idx = [];
+  for (let i = 0; i < rows.length; i++) if (rows[i].emb) idx.push(i);
+  if (!idx.length) return false;
+  const P = SPK_PARAMS[S.spkKind] || SPK_PARAMS.wespeaker;
+  const K = S.nspk === 'auto' ? 0 : Math.max(1, +S.nspk || 0);
+  const dim = rows[idx[0]].emb.length;
+  let rel = idx.filter((i) => (rows[i].w || 0) >= 1.5 && rows[i].emb.length === dim);
+  if (rel.length < Math.min(idx.length, 4)) rel = idx.filter((i) => rows[i].emb.length === dim);
+  // a) grupos iniciales
+  let cents = [];
+  const upd = (c) => { let n = 0; for (let k = 0; k < dim; k++) n += c.sum[k] * c.sum[k]; c.norm = Math.sqrt(n) || 1; };
+  const simTo = (e, c) => dot(e, c.sum) / c.norm;
+  for (const i of rel) {
+    const e = rows[i].emb, w = Math.min(rows[i].w || 1, 10); let b = -1, bs = -2;
+    for (let c = 0; c < cents.length; c++) { const s = simTo(e, cents[c]); if (s > bs) { bs = s; b = c; } }
+    if (b >= 0 && (bs >= P.tight || cents.length >= 120)) { const c = cents[b]; for (let k = 0; k < dim; k++) c.sum[k] += e[k] * w; c.w += w; upd(c); }
+    else { const c = { sum: new Float32Array(dim), w, norm: 1 }; for (let k = 0; k < dim; k++) c.sum[k] = e[k] * w; upd(c); cents.push(c); }
+  }
+  // b) descartar grupos diminutos (ruidos, música) si sobran
+  const W = cents.reduce((s, c) => s + c.w, 0);
+  const minW = K ? Math.max(3, 0.01 * W) : Math.max(6, 0.03 * W);
+  const big = cents.filter((c) => c.w >= minW);
+  if (big.length >= Math.max(1, K)) cents = big;
+  // c) unir los grupos más parecidos
+  const n0 = cents.length; const alive = new Array(n0).fill(true); const sim = [];
+  const cc = (a, b) => dot(a.sum, b.sum) / (a.norm * b.norm);
+  for (let i = 0; i < n0; i++) { sim.push(new Float32Array(n0)); for (let j = 0; j < i; j++) sim[i][j] = sim[j][i] = cc(cents[i], cents[j]); }
+  let count = n0;
+  while (count > 1) {
+    if (K && count <= K) break;
+    let bi = -1, bj = -1, bs = -2;
+    for (let i = 0; i < n0; i++) if (alive[i]) for (let j = 0; j < i; j++) if (alive[j] && sim[i][j] > bs) { bs = sim[i][j]; bi = i; bj = j; }
+    if (!K && bs < P.merge && count <= 8) break;
+    const a = cents[bi], b = cents[bj];
+    for (let k = 0; k < dim; k++) a.sum[k] += b.sum[k]; a.w += b.w; upd(a); alive[bj] = false; count--;
+    for (let j = 0; j < n0; j++) if (alive[j] && j !== bi) sim[bi][j] = sim[j][bi] = cc(a, cents[j]);
+  }
+  cents = cents.filter((c, i) => alive[i]);
+  // c2) afinar: reasignar los fragmentos fiables a su grupo más parecido y recalcular los grupos (3 vueltas)
+  const usable = idx.filter((i) => rows[i].emb.length === dim);
+  for (let it = 0; it < 3 && cents.length > 1; it++) {
+    const next = cents.map(() => ({ sum: new Float32Array(dim), w: 0, norm: 1 }));
+    for (const i of rel) {
+      const e = rows[i].emb, w = Math.min(rows[i].w || 1, 10); let b = 0, bs = -2;
+      for (let c = 0; c < cents.length; c++) { const sc = simTo(e, cents[c]); if (sc > bs) { bs = sc; b = c; } }
+      const n = next[b]; for (let k = 0; k < dim; k++) n.sum[k] += e[k] * w; n.w += w;
+    }
+    if (next.some((n) => n.w === 0)) break; // no vaciar ningún grupo
+    next.forEach(upd); cents = next;
+  }
+  // d) asignar cada fragmento: parecido de voz + continuidad (un fragmento corto o dudoso sigue a sus vecinos)
+  const lab = new Int32Array(rows.length).fill(-1); const sims = new Array(rows.length).fill(null);
+  for (const i of usable) { const v = new Float32Array(cents.length); let b = 0; for (let c = 0; c < cents.length; c++) { v[c] = simTo(rows[i].emb, cents[c]); if (v[c] > v[b]) b = c; } sims[i] = v; lab[i] = b; }
+  const unit = (1 - P.tight) / 0.4; // escala según el modelo de voces
+  const stick = (w) => (w < 1.5 ? 0.14 : w < 3 ? 0.09 : w < 6 ? 0.05 : 0.02) * unit;
+  const near = (i, d) => { for (let j = i + d; j >= 0 && j < rows.length && Math.abs(j - i) <= 2; j += d) if (lab[j] >= 0) return (Math.abs(rows[j].t - rows[i].t) < 30) ? lab[j] : -1; return -1; };
+  for (let pass = 0; pass < 3; pass++) {
+    let moved = 0;
+    for (const i of usable) {
+      const v = sims[i], bonus = stick(rows[i].w || 0), p = near(i, -1), n = near(i, 1); let b = lab[i], bs = -9;
+      for (let c = 0; c < cents.length; c++) { const sc = v[c] + (c === p ? bonus : 0) + (c === n ? bonus : 0); if (sc > bs) { bs = sc; b = c; } }
+      if (b !== lab[i]) { lab[i] = b; moved++; }
+    }
+    if (!moved) break;
+  }
+  for (let i = 0; i < rows.length; i++) if (lab[i] < 0) lab[i] = i > 0 ? lab[i - 1] : -1;
+  for (let i = rows.length - 2; i >= 0; i--) if (lab[i] < 0) lab[i] = lab[i + 1];
+  // e) conservar los números/nombres ya usados
+  const votes = {}; const used = new Set();
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i]; if (r.fix && r.spk) used.add(r.spk);
+    if (r.spk && lab[i] >= 0 && !r.fix) { const k = lab[i] + '|' + r.spk; votes[k] = (votes[k] || 0) + (r.w || 1); }
+  }
+  const map = {}; const takenOld = new Set();
+  Object.keys(votes).sort((a, b) => votes[b] - votes[a]).forEach((k) => {
+    const [c, o] = k.split('|').map(Number);
+    if (map[c] === undefined && !takenOld.has(o)) { map[c] = o; takenOld.add(o); used.add(o); }
+  });
+  for (let i = 0; i < rows.length; i++) {
+    const c = lab[i]; if (c < 0 || map[c] !== undefined) continue;
+    let id = 1; while (used.has(id)) id++; map[c] = id; used.add(id);
+  }
+  let changed = false;
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i]; if (r.fix && r.spk) continue;
+    const id = lab[i] >= 0 ? map[lab[i]] : undefined;
+    if (id !== undefined && r.spk !== id) { r.spk = id; changed = true; }
+  }
+  return changed;
+}
+const nameOf = (id) => S.names[id] || ('Orador ' + id);
+const hasSpk = () => S.rows.some((r) => r.spk);
+function speakerIds() { const seen = []; for (const r of S.rows) if (r.spk && !seen.includes(r.spk)) seen.push(r.spk); return seen; }
+
+// ---------------------------------------------------------------- Agregar resultado como filas
+async function addResult(seg, res, pcm) {
+  const off = seg.s / SR, segEnd = seg.e / SR;
+  const pieces = [];
+  if (res.chunks && res.chunks.length) {
+    for (const c of res.chunks) {
+      const ts = c.timestamp || [];
+      let st = typeof ts[0] === 'number' ? off + ts[0] : off;
+      let en = typeof ts[1] === 'number' ? off + ts[1] : null;
+      st = Math.min(Math.max(st, off), segEnd); if (en !== null) en = Math.min(Math.max(en, st), segEnd);
+      const text = cleanText(c.text);
+      if (text) pieces.push({ t: st, e: en, text });
+    }
+  } else {
+    const text = cleanText(res.text);
+    if (text) pieces.push({ t: off, e: segEnd, text });
+  }
+  for (let k = 0; k < pieces.length; k++) {
+    const p = pieces[k]; const end = p.e !== null && p.e > p.t ? p.e : (pieces[k + 1] ? pieces[k + 1].t : segEnd);
+    p.w = Math.max(0.2, end - p.t);
+    if (S.diar) { const v = await embedSlice(pcm, p.t, end, off, segEnd); if (v) p.emb = v; }
+  }
+  // unir trozos cortos que no terminan una oración (salvo que la voz cambie claramente)
+  const canMerge = (a, b) => !/[.!?…]$/.test(a.text) && (a.text.length + b.text.length) < 220 &&
+    !(a.emb && b.emb && a.emb.length === b.emb.length && S.spkKind === 'wespeaker' && dot(a.emb, b.emb) < 0.28);
+  const merged = [];
+  for (const p of pieces) {
+    const last = merged[merged.length - 1];
+    if (last && canMerge(last, p)) { last.text += ' ' + p.text; last.e = p.e; mergeEmb(last, p); }
+    else merged.push(p);
+  }
+  if (merged.length && S.rows.length) {
+    const prev = S.rows[S.rows.length - 1];
+    if (canMerge(prev, merged[0]) && merged[0].t - (prev.e || prev.t) < 2) {
+      prev.text += ' ' + merged[0].text; prev.e = merged[0].e; mergeEmb(prev, merged[0]); merged.shift();
+      updateRow(S.rows.length - 1);
+    }
+  }
+  for (const p of merged) { S.rows.push(p); appendRow(S.rows.length - 1); }
+}
+
+// ---------------------------------------------------------------- Render
+const rowsEl = $('rows');
+const CE = (() => { try { const t = document.createElement('div'); t.contentEditable = 'plaintext-only'; return t.contentEditable === 'plaintext-only' ? 'plaintext-only' : 'true'; } catch (e) { return 'true'; } })();
+const JOIN_LEN = 600; // sin oradores identificados: se agrupa en párrafos de este largo aproximado
+const joins = (prevSpk, spk, len) => (prevSpk || 0) === (spk || 0) && (spk ? true : len < JOIN_LEN);
+function groups() { // párrafos: filas seguidas del mismo orador
+  const out = []; let cur = null;
+  S.rows.forEach((r, i) => {
+    if (cur && joins(cur.spk, r.spk, cur.len)) { cur.n++; cur.len += r.text.length; }
+    else { cur = { from: i, n: 1, spk: r.spk, len: r.text.length }; out.push(cur); }
+  });
+  return out;
+}
+const layoutSig = (gs) => gs.map((g) => g.from + ':' + g.n).join(',');
+function segHTML(i) { return `<span class="seg" data-i="${i}" title="${fmtT(S.rows[i].t, S.longFmt)}">${esc(S.rows[i].text)}</span>`; }
+function blockHTML(from, n) {
+  let segs = []; for (let k = 0; k < n; k++) segs.push(segHTML(from + k));
+  return `<button class="ts" data-i="${from}" title="Escuchar desde aquí">${fmtT(S.rows[from].t, S.longFmt)}</button><button class="sp hidden" data-i="${from}" title="Cambiar nombre o corregir orador"></button><div class="tx" contenteditable="${CE}" spellcheck="false">${segs.join(' ')}</div>`;
+}
+function paintSpk(d, i) {
+  const r = S.rows[i]; const b = d.querySelector('.sp'); if (!b) return;
+  d.classList.toggle('turn', i > 0);
+  if (!r.spk) { b.classList.add('hidden'); return; }
+  b.className = 'sp c' + ((r.spk - 1) % 8 + 1);
+  b.textContent = nameOf(r.spk);
+}
+function refreshSpeakers() {
+  const any = hasSpk();
+  if (any && rowsEl.dataset.sig !== layoutSig(groups())) { renderRows(); return; } // cambió el agrupamiento por orador
+  rowsEl.classList.toggle('with-spk', any);
+  if (any) rowsEl.querySelectorAll('.r').forEach((d) => paintSpk(d, +d.dataset.i));
+  const bar = $('spkBar'); bar.classList.toggle('hidden', !any);
+  if (any) {
+    $('legend').innerHTML = speakerIds().map((id) => `<button class="sp c${(id - 1) % 8 + 1}" data-spk="${id}" title="Cambiar nombre">${esc(nameOf(id))}</button>`).join(' ');
+    $('nspk2').value = S.nspk === 'off' ? 'auto' : String(S.nspk);
+    $('nspk2').disabled = !S.rows.some((r) => r.emb);
+  }
+}
+function appendRow(i) {
+  const empty = rowsEl.querySelector('.empty'); if (empty) empty.remove();
+  const r = S.rows[i]; const last = rowsEl.lastElementChild;
+  if (last && last.classList.contains('r')) {
+    const tx = last.querySelector('.tx'); const prev = S.rows[+last.dataset.i + +last.dataset.n - 1];
+    if (prev && joins(prev.spk, r.spk, tx.textContent.length)) {
+      tx.insertAdjacentText('beforeend', ' '); tx.insertAdjacentHTML('beforeend', segHTML(i));
+      last.dataset.n = +last.dataset.n + 1; rowsEl.dataset.sig = layoutSig(groups());
+      if ($('search').value) applySearch(false);
+      return;
+    }
+  }
+  const d = document.createElement('div'); d.className = 'r'; d.dataset.i = i; d.dataset.n = 1; d.innerHTML = blockHTML(i, 1);
+  rowsEl.appendChild(d); rowsEl.dataset.sig = layoutSig(groups());
+  if (hasSpk()) paintSpk(d, i);
+  if ($('search').value) applySearch(false);
+}
+function updateRow(i) { const d = rowsEl.querySelector(`.seg[data-i="${i}"]`); if (d && !d.closest('.tx').contains(document.activeElement)) d.textContent = S.rows[i].text; }
+function renderRows() {
+  rowsEl.innerHTML = '';
+  if (!S.rows.length) { rowsEl.dataset.sig = ''; rowsEl.innerHTML = '<div class="empty">Aquí irá apareciendo el texto.</div>'; refreshSpeakers(); return; }
+  const frag = document.createDocumentFragment(); const gs = groups();
+  gs.forEach((g) => { const d = document.createElement('div'); d.className = 'r'; d.dataset.i = g.from; d.dataset.n = g.n; d.innerHTML = blockHTML(g.from, g.n); frag.appendChild(d); });
+  rowsEl.appendChild(frag); rowsEl.dataset.sig = layoutSig(gs);
+  refreshSpeakers(); applySearch(false);
+}
+rowsEl.addEventListener('input', (ev) => { const el = ev.target.closest('.tx'); if (el) el.dataset.dirty = '1'; });
+rowsEl.addEventListener('focusout', (ev) => { const el = ev.target.closest && ev.target.closest('.tx'); if (el && el.dataset.dirty) commitEdit(el); });
+function commitEdit(tx) { // pasa lo editado en el párrafo a los fragmentos
+  delete tx.dataset.dirty;
+  const d = tx.closest('.r'); if (!d) return; const from = +d.dataset.i, n = +d.dataset.n;
+  const n1 = (t) => t.replace(/\s+/g, ' ').trim();
+  const segs = [...tx.querySelectorAll('.seg')]; const whole = n1(tx.textContent);
+  const intact = segs.length === n && whole === n1(segs.map((x) => x.textContent).join(' ')) && segs.every((x, k) => +x.dataset.i === from + k);
+  if (intact) { segs.forEach((x, k) => { S.rows[from + k].text = n1(x.textContent); }); }
+  else if (!whole) { S.rows.splice(from, n); renderRows(); }
+  else { const first = S.rows[from], lastR = S.rows[from + n - 1]; S.rows.splice(from, n, Object.assign({}, first, { text: whole, e: lastR.e })); renderRows(); }
+  saveSoon();
+}
+rowsEl.addEventListener('paste', (ev) => {
+  const el = ev.target.closest('.tx'); if (!el) return;
+  ev.preventDefault(); const t = (ev.clipboardData || window.clipboardData).getData('text/plain');
+  document.execCommand('insertText', false, t);
+});
+rowsEl.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' && ev.target.closest('.tx')) { ev.preventDefault(); ev.target.blur(); } });
+rowsEl.addEventListener('click', (ev) => {
+  const sp = ev.target.closest('.sp'); if (sp) { openSpkPop(sp, +sp.dataset.i); return; }
+  const b = ev.target.closest('.ts'); if (!b) return;
+  const p = $('player'); if (!p.getAttribute('src')) { toast('Selecciona el audio para poder escucharlo'); $('linkAudio').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+  p.currentTime = S.rows[+b.dataset.i].t; p.play().catch(() => {});
+});
+$('legend').addEventListener('click', (ev) => { const sp = ev.target.closest('.sp'); if (sp) openSpkPop(sp, -1, +sp.dataset.spk); });
+$('player').addEventListener('timeupdate', () => {
+  const t = $('player').currentTime; let idx = -1;
+  for (let lo = 0, hi = S.rows.length - 1; lo <= hi;) { const m = (lo + hi) >> 1; if (S.rows[m].t <= t) { idx = m; lo = m + 1; } else hi = m - 1; }
+  const prev = rowsEl.querySelector('.seg.playing');
+  if (prev && +prev.dataset.i === idx) return;
+  if (prev) { prev.classList.remove('playing'); const pr = prev.closest('.r'); if (pr) pr.classList.remove('playing'); }
+  if (idx >= 0) { const sg = rowsEl.querySelector(`.seg[data-i="${idx}"]`); if (sg) { sg.classList.add('playing'); sg.closest('.r').classList.add('playing'); } }
+});
+
+// ---------------------------------------------------------------- Menú del orador (renombrar / corregir)
+const pop = $('spkPop'); let popCtx = null;
+function openSpkPop(anchor, i, spkId) {
+  const id = spkId || S.rows[i].spk; if (!id) return;
+  popCtx = { i, id };
+  const others = speakerIds();
+  let h = `<label>Nombre de este orador<input type="text" id="spkName" value="${esc(nameOf(id))}" maxlength="40"></label><div class="pophint">Se cambia en toda la transcripción.</div>`;
+  if (i >= 0) {
+    h += `<div class="poptitle">¿Este fragmento lo dice otra persona?</div><div class="popbtns">` +
+      others.filter((o) => o !== id).map((o) => `<button class="sp c${(o - 1) % 8 + 1}" data-to="${o}">${esc(nameOf(o))}</button>`).join('') +
+      `<button data-to="new">+ Otra persona</button></div>`;
+  }
+  pop.innerHTML = h; pop.classList.remove('hidden');
+  const r = anchor.getBoundingClientRect();
+  pop.style.top = (window.scrollY + r.bottom + 6) + 'px';
+  pop.style.left = Math.max(8, Math.min(window.scrollX + r.left, window.scrollX + document.documentElement.clientWidth - 300)) + 'px';
+  const inp = $('spkName'); inp.focus(); inp.select();
+  inp.addEventListener('input', () => { const v = inp.value.trim(); if (v) S.names[id] = v; else delete S.names[id]; refreshSpeakers(); saveSoon(); });
+  inp.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === 'Escape') closePop(); });
+}
+function closePop() { pop.classList.add('hidden'); popCtx = null; }
+pop.addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-to]'); if (!b || !popCtx) return;
+  let to = b.dataset.to; const { i, id } = popCtx;
+  if (to === 'new') { const used = new Set(S.rows.map((r) => r.spk).filter(Boolean)); to = 1; while (used.has(to)) to++; } else to = +to;
+  // desde este fragmento hasta que cambie el orador
+  for (let j = i; j < S.rows.length && S.rows[j].spk === id; j++) { S.rows[j].spk = to; S.rows[j].fix = true; }
+  closePop(); refreshSpeakers(); saveSoon();
+});
+document.addEventListener('mousedown', (ev) => { if (!pop.classList.contains('hidden') && !pop.contains(ev.target) && !ev.target.closest('.sp')) closePop(); });
+$('nspk2').addEventListener('change', () => {
+  S.nspk = $('nspk2').value;
+  for (const r of S.rows) if (!r.fix) r.spk = undefined;
+  cluster(); refreshSpeakers(); saveSoon(); toast('Oradores actualizados');
+});
+
+// ---------------------------------------------------------------- Búsqueda
+let matches = [], cur = -1;
+function applySearch(jump) {
+  const q = norm($('search').value.trim());
+  matches = []; rowsEl.querySelectorAll('.seg.match, .seg.current').forEach((d) => d.classList.remove('match', 'current'));
+  if (!q) { $('count').textContent = ''; cur = -1; return; }
+  rowsEl.querySelectorAll('.seg').forEach((d) => { const r = S.rows[+d.dataset.i]; if (r && norm(r.text).includes(q)) { d.classList.add('match'); matches.push(d); } });
+  $('count').textContent = matches.length ? `${matches.length} resultado${matches.length > 1 ? 's' : ''}` : 'Sin resultados';
+  if (jump) { cur = -1; go(1); }
+}
+function go(dir) {
+  if (!matches.length) return;
+  if (matches[cur]) matches[cur].classList.remove('current');
+  cur = (cur + dir + matches.length) % matches.length;
+  matches[cur].classList.add('current'); matches[cur].scrollIntoView({ block: 'center', behavior: 'smooth' });
+  $('count').textContent = `${cur + 1} de ${matches.length}`;
+}
+$('search').addEventListener('input', () => applySearch(true));
+$('search').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(e.shiftKey ? -1 : 1); } });
+$('nextBtn').onclick = () => go(1); $('prevBtn').onclick = () => go(-1);
+$('onlyMatches').onchange = (e) => rowsEl.classList.toggle('only-matches', e.target.checked);
+
+// ---------------------------------------------------------------- Copiar cita
+const citeBtn = $('citeBtn'); let citeData = null;
+document.addEventListener('selectionchange', () => {
+  const sel = document.getSelection();
+  if (!sel || sel.isCollapsed || !sel.rangeCount) { setTimeout(() => { if (document.getSelection().isCollapsed) citeBtn.style.display = 'none'; }, 150); return; }
+  const r = sel.getRangeAt(0); const node = r.startContainer.nodeType === 1 ? r.startContainer : r.startContainer.parentElement;
+  const row = node && node.closest && node.closest('.r'); if (!row || !rowsEl.contains(row)) { citeBtn.style.display = 'none'; return; }
+  const text = sel.toString().replace(/\s+/g, ' ').trim(); if (text.length < 3) return;
+  const sg = node.closest('.seg') || (r.startContainer.nextElementSibling && r.startContainer.nextElementSibling.classList && r.startContainer.nextElementSibling.classList.contains('seg') ? r.startContainer.nextElementSibling : null) || row.querySelector('.seg');
+  const rr = S.rows[sg ? +sg.dataset.i : +row.dataset.i]; citeData = { text, t: rr.t, spk: rr.spk };
+  const rect = r.getBoundingClientRect();
+  citeBtn.style.display = 'block';
+  citeBtn.style.top = (window.scrollY + rect.top - 42) + 'px';
+  citeBtn.style.left = (window.scrollX + Math.max(8, rect.left)) + 'px';
+});
+citeBtn.addEventListener('mousedown', (e) => e.preventDefault());
+citeBtn.addEventListener('click', async () => {
+  if (!citeData) return;
+  const t = citeData.text.replace(/^["“”«»]+|["“”«»]+$/g, '');
+  const who = citeData.spk ? nameOf(citeData.spk) + ', ' : '';
+  const ok = await copyText(`“${t}” (${who}${fmtT(citeData.t, S.longFmt)})`);
+  toast(ok ? 'Cita copiada' : 'No se pudo copiar'); citeBtn.style.display = 'none';
+});
+
+// ---------------------------------------------------------------- Exportar
+function getTitle() { return safeName(baseName(S.name || 'transcripcion')); }
+function turns() { // grupos de filas seguidas del mismo orador
+  const out = []; for (const r of S.rows) { const last = out[out.length - 1]; if (last && last.spk === r.spk) last.rows.push(r); else out.push({ spk: r.spk, rows: [r] }); } return out;
+}
+function plainText(withTimes) {
+  if (!hasSpk()) return S.rows.map((r) => (withTimes ? `[${fmtT(r.t, S.longFmt)}] ` : '') + r.text).join(withTimes ? '\n' : '\n\n');
+  return turns().map((g) => {
+    const who = g.spk ? nameOf(g.spk) : 'Orador';
+    return withTimes ? `${who}:\n` + g.rows.map((r) => `[${fmtT(r.t, S.longFmt)}] ${r.text}`).join('\n') : `${who}: ` + g.rows.map((r) => r.text).join(' ');
+  }).join('\n\n');
+}
+$('copyAll').onclick = async () => {
+  if (!S.rows.length) return toast('Todavía no hay texto');
+  toast((await copyText(plainText($('withTimes').checked))) ? 'Texto copiado: pégalo en Word' : 'No se pudo copiar');
+};
+$('dlTxt').onclick = () => {
+  if (!S.rows.length) return toast('Todavía no hay texto');
+  download(getTitle() + ' - transcripción.txt', new Blob(['﻿' + plainText($('withTimes').checked)], { type: 'text/plain;charset=utf-8' }));
+};
+function srtTime(t) {
+  const ms = Math.round(t * 1000), h = Math.floor(ms / 3600000), m = Math.floor(ms % 3600000 / 60000), s = Math.floor(ms % 60000 / 1000), x = ms % 1000;
+  const p = (n, k = 2) => String(n).padStart(k, '0'); return `${p(h)}:${p(m)}:${p(s)},${p(x, 3)}`;
+}
+$('dlSrt').onclick = () => {
+  if (!S.rows.length) return toast('Todavía no hay texto');
+  const out = S.rows.map((r, i) => {
+    const next = S.rows[i + 1] ? S.rows[i + 1].t : r.t + 6;
+    let end = r.e && r.e > r.t ? Math.min(r.e, next) : Math.min(next, r.t + 8);
+    if (end <= r.t) end = r.t + 2;
+    return `${i + 1}\n${srtTime(r.t)} --> ${srtTime(end)}\n${r.text}\n`;
+  }).join('\n');
+  download(getTitle() + '.srt', new Blob([out], { type: 'text/plain;charset=utf-8' }));
+};
+// --- Word (.docx) sin librerías: un ZIP simple
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(b) { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function zip(files, mime) {
+  const enc = new TextEncoder(); const chunks = []; const central = []; let off = 0;
+  const u16 = (v) => [v & 255, (v >>> 8) & 255], u32 = (v) => [v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255];
+  for (const f of files) {
+    const name = enc.encode(f.name), data = enc.encode(f.data), crc = crc32(data);
+    const local = new Uint8Array([...u32(0x04034b50), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(data.length), ...u32(data.length), ...u16(name.length), ...u16(0)]);
+    chunks.push(local, name, data);
+    central.push(new Uint8Array([...u32(0x02014b50), ...u16(20), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(data.length), ...u32(data.length), ...u16(name.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(off)]), name);
+    off += local.length + name.length + data.length;
+  }
+  const cSize = central.reduce((s, c) => s + c.length, 0);
+  const end = new Uint8Array([...u32(0x06054b50), ...u16(0), ...u16(0), ...u16(files.length), ...u16(files.length), ...u32(cSize), ...u32(off), ...u16(0)]);
+  return new Blob([...chunks, ...central, end], { type: mime || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+}
+function xmlEsc(s) { return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, ''); }
+function makeDocx(title, withTimes) {
+  const font = '<w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/>';
+  const run = (text, extra = '') => `<w:r><w:rPr>${font}${extra}</w:rPr><w:t xml:space="preserve">${xmlEsc(text)}</w:t></w:r>`;
+  const para = (inner, after = 160, before = 0) => `<w:p><w:pPr><w:spacing w:before="${before}" w:after="${after}" w:line="300" w:lineRule="auto"/></w:pPr>${inner}</w:p>`;
+  const tm = (r) => run(`[${fmtT(r.t, S.longFmt)}]  `, '<w:color w:val="999999"/><w:sz w:val="20"/>');
+  let body = para(run(title, '<w:b/><w:sz w:val="36"/>'), 80);
+  const meta = 'Transcripción automática' + (S.duration ? ' · Duración: ' + fmtT(S.duration, S.duration >= 3600) : '') + ' · ' + new Date().toLocaleDateString('es-PE', { dateStyle: 'long' });
+  body += para(run(meta, '<w:color w:val="777777"/><w:sz w:val="20"/>'), 320);
+  if (!hasSpk()) for (const r of S.rows) body += para((withTimes ? tm(r) : '') + run(r.text, '<w:sz w:val="23"/>'));
+  else for (const g of turns()) {
+    const who = g.spk ? nameOf(g.spk) : 'Orador';
+    if (withTimes) { body += para(run(who, '<w:b/><w:sz w:val="23"/>'), 60, 200); for (const r of g.rows) body += para(tm(r) + run(r.text, '<w:sz w:val="23"/>'), 80); }
+    else body += para(run(who + ': ', '<w:b/><w:sz w:val="23"/>') + run(g.rows.map((r) => r.text).join(' '), '<w:sz w:val="23"/>'), 200);
+  }
+  const doc = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1418" w:right="1418" w:bottom="1418" w:left="1418" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr></w:body></w:document>`;
+  return zip([
+    { name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>' },
+    { name: '_rels/.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>' },
+    { name: 'word/document.xml', data: doc }
+  ]);
+}
+$('dlDocx').onclick = () => {
+  if (!S.rows.length) return toast('Todavía no hay texto');
+  download(getTitle() + ' - transcripción.docx', makeDocx(getTitle(), $('withTimes').checked));
+};
+
+// ---------------------------------------------------------------- Mantener la pantalla activa
+let wakeLock = null;
+async function keepAwake(on) {
+  try {
+    if (on && 'wakeLock' in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); }
+    if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => { if (S.running && document.visibilityState === 'visible') keepAwake(true); });
+window.addEventListener('beforeunload', (e) => { if (S.running) { saveProgress(); e.preventDefault(); e.returnValue = ''; } });
+
+// ---------------------------------------------------------------- Controles
+$('pauseBtn').onclick = () => {
+  S.paused = !S.paused; $('pauseBtn').textContent = S.paused ? 'Reanudar' : 'Pausar';
+  $('statR').textContent = S.paused ? 'En pausa' : '';
+};
+$('stopBtn').onclick = () => { S.stopped = true; S.paused = false; $('stopBtn').disabled = true; $('pauseBtn').disabled = true; $('statR').textContent = 'Deteniendo…'; };
+function lockSetup(on) {
+  ['file', 'url', 'quality', 'lang', 'nspk', 'forceCPU', 'tabFile', 'tabUrl'].forEach((id) => { $(id).disabled = on; });
+  if (on) $('startBtn').disabled = true; else refreshStart();
+}
+
+// ---------------------------------------------------------------- Proceso principal
+async function start(resume) {
+  if (S.running || S.blocked) return;
+  const key = currentKey(); if (!key) return;
+  const quality = $('quality').value, lang = $('lang').value;
+  const url = S.mode === 'url' ? $('url').value.trim() : null;
+  if (!url && !S.pick) return;
+  const savedMeta = resume ? META[key] : null;
+  const saved = savedMeta ? await dbGet(key) : null;
+  S.quality = quality; S.lang = lang; S.key = key;
+  S.running = true; S.paused = false; S.stopped = false; S.done = false;
+  S.rows = saved ? saved.rows.slice() : []; S.names = saved ? (saved.names || {}) : {};
+  S.next = 0; S.segs = null; S.segCount = 0;
+  S.nspk = $('nspk').value; S.diar = S.nspk !== 'off'; S.spkKind = null; S.embFails = 0;
+  S.name = url ? (savedMeta && savedMeta.name) || url : S.pick.name;
+  $('resumeBox').classList.add('hidden'); lockSetup(true);
+  $('work').classList.remove('hidden'); $('result').classList.remove('hidden'); $('errBox').classList.add('hidden'); spkNote('');
+  $('resultTitle').textContent = S.name;
+  ['st-audio', 'st-model', 'st-tx'].forEach((id) => step(id, null, ''));
+  setBar(0); $('statL').textContent = ''; $('statR').textContent = ''; $('pauseBtn').textContent = 'Pausar';
+  if (!url) { S.file = S.pick; setPlayer(S.file); } else { S.file = null; $('player').classList.add('hidden'); $('linkAudio').classList.add('hidden'); }
+  renderRows();
+  $('work').scrollIntoView({ behavior: 'smooth' });
+  keepAwake(true);
+
+  const preferGPU = !!S.gpu && !$('forceCPU').checked;
+  let pcm;
+  try {
+    const pAudio = (async () => {
+      if (url) { const f = await getFromLink(url); S.file = f; S.name = f.name; $('resultTitle').textContent = S.name; setPlayer(f); }
+      const x = await getPCM(S.file); step('st-audio', 'done', 'Listo'); return x;
+    })();
+    const pModel = loadModel(quality, lang || null, preferGPU).then(() => {
+      step('st-model', 'done', (S.device === 'webgpu' ? 'Listo (usando tarjeta gráfica)' : 'Listo (usando el procesador)') + (S.diar ? ' · con identificación de oradores' : ''));
+    });
+    const results = await Promise.allSettled([pAudio, pModel]);
+    for (const r of results) if (r.status === 'rejected') throw r.reason;
+    pcm = results[0].value;
+  } catch (e) {
+    S.key = null; finish();
+    ['st-audio', 'st-model'].forEach((id) => { if ($(id).classList.contains('active')) step(id, null, 'No se pudo completar'); });
+    showError(e.message, e.details || '');
+    return;
+  }
+
+  S.duration = pcm.length / SR; S.longFmt = S.duration >= 3600;
+  const keepAudio = S.audioCopy || (S.file && S.file.size <= MAX_ORIGINAL ? S.file : null); S.audioCopy = null;
+  const segs = segment(pcm); S.segs = segs; S.segCount = segs.length;
+  if (saved && savedMeta.segCount === segs.length && savedMeta.next > 0) S.next = savedMeta.next;
+  else if (saved) { S.rows = []; S.names = {}; }
+  renderRows(); await saveProgress(); renderHistory();
+  if (keepAudio) dbPutAudio(S.key, keepAudio);
+  const total = segs.length, totalSec = S.duration;
+  step('st-tx', 'active', `Duración del audio: ${fmtDur(totalSec)}`);
+  const t0 = performance.now(); const startSec = S.next < total ? segs[S.next].s / SR : 0;
+  let gpuChecked = 0;
+
+  for (; S.next < total; S.next++) {
+    while (S.paused && !S.stopped) await sleep(250);
+    if (S.stopped) break;
+    const seg = segs[S.next];
+    if (!seg.silent) {
+      const audio = new Float32Array(seg.e - seg.s);
+      for (let i = 0; i < audio.length; i++) audio[i] = pcm[seg.s + i] / 32768;
+      let res;
+      try {
+        res = await asrCall({ type: 'run', id: S.next, audio, language: lang || null }, 'run');
+        if (S.device === 'webgpu' && gpuChecked < 6 && res.text.trim()) {
+          gpuChecked++;
+          if (looksBroken(res.text)) throw new Error('Resultado ilegible con la tarjeta gráfica');
+        }
+      } catch (e) {
+        if (S.device === 'webgpu') {
+          step('st-tx', 'active', 'La tarjeta gráfica dio problemas; continuando con el procesador…');
+          resetASR();
+          try { await loadModel(quality === 'turbo' ? 'small' : quality, lang || null, false); step('st-model', 'done', 'Listo (usando el procesador)'); step('st-tx', 'active'); }
+          catch (e2) { await saveProgress(); finish(); showError(e2.message, e2.details); return; }
+          S.next--; continue;
+        }
+        await saveProgress(); finish();
+        showError('Se produjo un error al transcribir. Tu avance quedó guardado: vuelve a elegir el archivo y pulsa “Continuar”.', e.message);
+        return;
+      }
+      await addResult(seg, res, pcm);
+      if (S.rows.some((r) => r.emb) && S.next % 2 === 0) { cluster(); refreshSpeakers(); }
+    }
+    const doneSec = seg.e / SR;
+    setBar(doneSec / totalSec);
+    const el = (performance.now() - t0) / 1000;
+    const rate = (doneSec - startSec) / Math.max(el, 0.001);
+    const left = rate > 0 ? (totalSec - doneSec) / rate : 0;
+    $('statL').textContent = `${fmtT(doneSec, S.longFmt)} de ${fmtT(totalSec, S.longFmt)} transcritos (${Math.round(100 * doneSec / totalSec)}%)`;
+    if (!S.paused && el > 8) $('statR').textContent = `Quedan aprox. ${fmtDur(left)}`;
+    if (S.next % 8 === 7) saveProgress();
+  }
+
+  if (S.rows.some((r) => r.emb)) { cluster(); refreshSpeakers(); }
+  S.done = S.next >= total;
+  if (S.done) {
+    setBar(1);
+    step('st-tx', 'done', `Listo: ${fmtDur(totalSec)} de audio en ${fmtDur((performance.now() - t0) / 1000)}`);
+    $('statR').textContent = 'Terminado';
+    toast('Transcripción terminada');
+    try { document.title = '✓ Transcripción lista'; setTimeout(() => document.title = 'Desgrabador', 8000); } catch (e) {}
+  } else {
+    step('st-tx', null, 'Detenido. El avance quedó guardado; puedes continuar luego.');
+    $('statR').textContent = 'Detenido';
+  }
+  await saveProgress();
+  finish();
+}
+function finish() {
+  S.running = false; keepAwake(false); lockSetup(false);
+  $('pauseBtn').disabled = true; $('stopBtn').disabled = true;
+  renderHistory();
+}
+$('startBtn').onclick = () => {
+  const k = currentKey(); const e = k && META[k];
+  if (e && (e.done || e.next > 0)) { checkResume(); $('resumeBox').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+  start(false);
+};
+new MutationObserver(() => {
+  const on = S.running && $('st-tx').classList.contains('active');
+  $('pauseBtn').disabled = !on; if (!S.stopped) $('stopBtn').disabled = !on;
+}).observe($('st-tx'), { attributes: true });
+
+// ---------------------------------------------------------------- Inicio
+// ---------------------------------------------------------------- Vistas: inicio / documento
+function docOpen() { return !$('result').classList.contains('hidden') || !$('work').classList.contains('hidden'); }
+function setView(v) {
+  const doc = v === 'doc' && docOpen();
+  document.body.classList.toggle('doc', doc);
+  $('reopenBtn').classList.toggle('hidden', doc || !docOpen());
+  if (doc) window.scrollTo(0, 0);
+}
+(() => {
+  const seen = { work: true, result: true }; // true = estaba oculto
+  const mo = new MutationObserver(() => {
+    let opened = false;
+    for (const id of ['work', 'result']) { const hid = $(id).classList.contains('hidden'); if (seen[id] && !hid) opened = true; seen[id] = hid; }
+    if (opened) setView('doc'); else if (!docOpen()) setView('home'); else $('reopenBtn').classList.toggle('hidden', document.body.classList.contains('doc'));
+  });
+  mo.observe($('work'), { attributes: true, attributeFilter: ['class'] }); mo.observe($('result'), { attributes: true, attributeFilter: ['class'] });
+  $('backBtn').onclick = () => { setView('home'); renderHistory(); };
+  $('reopenBtn').onclick = () => setView('doc');
+  $('histGrid').addEventListener('click', (ev) => { if (ev.target.closest('.hcard') && !ev.target.closest('.trash')) setTimeout(() => { if (docOpen()) setView('doc'); }, 60); });
+  $('startBtn').addEventListener('click', () => setTimeout(() => { if (docOpen()) setView('doc'); }, 60));
+  const pl = $('player'); const sync = () => $('dock').classList.toggle('noaudio', !pl.getAttribute('src'));
+  new MutationObserver(sync).observe(pl, { attributes: true, attributeFilter: ['src'] }); sync();
+})();
+
+// ---------------------------------------------------------------- Cuentas y copia en la nube (Supabase)
+const NUBE = (() => {
+  const c = window.TRANSCRIPTOR_NUBE || {}; const url = String(c.url || '').trim().replace(/\/+$/, ''); const clave = String(c.clave || '').trim();
+  return { on: /^https?:\/\//.test(url) && clave.length > 20, url, clave, ses: null, dirty: new Set(), timer: null, busy: false };
+})();
+const SES_KEY = 'tx.sesion';
+function sesLoad() { try { NUBE.ses = JSON.parse(localStorage.getItem(SES_KEY) || 'null'); } catch (e) { NUBE.ses = null; } }
+function sesSave(x) { NUBE.ses = x; try { if (x) localStorage.setItem(SES_KEY, JSON.stringify(x)); else localStorage.removeItem(SES_KEY); } catch (e) {} }
+const sesFrom = (j, user) => ({ access: j.access_token, refresh: j.refresh_token, exp: Date.now() + (+j.expires_in || 3600) * 1000, uid: (user || j.user || {}).id, email: (user || j.user || {}).email });
+function authMsgEs(j, status) {
+  const m = String((j && (j.msg || j.error_description || j.message || j.error)) || '').toLowerCase(); const code = String((j && (j.error_code || j.code)) || '');
+  if (/invalid login|invalid_credentials/.test(m + code)) return 'Correo o contraseña incorrectos.';
+  if (/already registered|user_already_exists|already been registered/.test(m + code)) return 'Ese correo ya tiene una cuenta. Inicia sesión.';
+  if (/not confirmed|email_not_confirmed/.test(m + code)) return 'Todavía no confirmas tu correo. Abre el mensaje que te enviamos y pulsa el enlace.';
+  if (/password/.test(m) && /(least|short|weak|characters)/.test(m + code)) return 'La contraseña es muy corta o muy fácil. Usa al menos 8 caracteres.';
+  if (/valid email|invalid.*email|email_address_invalid/.test(m + code)) return 'Ese correo no parece válido.';
+  if (status === 429 || /rate limit|too many/.test(m + code)) return 'Demasiados intentos. Espera unos minutos y vuelve a probar.';
+  if (/signups? (not allowed|disabled)|signup_disabled/.test(m + code)) return 'El registro de cuentas nuevas está desactivado.';
+  return 'No se pudo completar' + (m ? ' (' + m + ')' : '') + '.';
+}
+async function authCall(path, body, token, method) {
+  let r, j = null;
+  try {
+    r = await fetch(NUBE.url + '/auth/v1/' + path, { method: method || 'POST',
+      headers: Object.assign({ apikey: NUBE.clave, 'Content-Type': 'application/json' }, token ? { Authorization: 'Bearer ' + token } : {}),
+      body: body ? JSON.stringify(body) : undefined });
+  } catch (e) { throw new Error('No hay conexión con el servidor de cuentas. Revisa tu internet.'); }
+  try { j = await r.json(); } catch (e) {}
+  if (!r.ok) { const er = new Error(authMsgEs(j, r.status)); er.status = r.status; throw er; }
+  return j || {};
+}
+async function nubeToken() {
+  const x = NUBE.ses; if (!x) throw new Error('sin sesión');
+  if (x.exp - Date.now() > 90000) return x.access;
+  if (!NUBE.refreshing) NUBE.refreshing = (async () => {
+    try { const j = await authCall('token?grant_type=refresh_token', { refresh_token: x.refresh }); sesSave(sesFrom(j, { id: x.uid, email: x.email })); }
+    catch (e) { if (e.status === 400 || e.status === 401 || e.status === 403) { sesSave(null); location.reload(); } throw e; }
+    finally { NUBE.refreshing = null; }
+  })();
+  await NUBE.refreshing; return NUBE.ses.access;
+}
+async function nubeRest(method, query, body, prefer) {
+  const tk = await nubeToken();
+  const r = await fetch(NUBE.url + '/rest/v1/transcripciones' + (query || ''), { method,
+    headers: Object.assign({ apikey: NUBE.clave, Authorization: 'Bearer ' + tk, 'Content-Type': 'application/json' }, prefer ? { Prefer: prefer } : {}),
+    body: body ? JSON.stringify(body) : undefined });
+  if (!r.ok) { const t = await r.text().catch(() => ''); const er = new Error('Nube ' + r.status + ' ' + t.slice(0, 200)); er.status = r.status; throw er; }
+  if (r.status === 204) return null;
+  const t = await r.text(); return t ? JSON.parse(t) : null;
+}
+const syncKey = () => 'tx.sync.' + (NUBE.ses ? NUBE.ses.uid : '');
+function syncMap() { try { return JSON.parse(localStorage.getItem(syncKey()) || '{}'); } catch (e) { return {}; } }
+function syncSet(k, v) { const m = syncMap(); if (v === null) delete m[k]; else m[k] = v; try { localStorage.setItem(syncKey(), JSON.stringify(m)); } catch (e) {} }
+function syncState(t, bad) { const el = $('syncState'); if (el) { el.textContent = t; el.style.color = bad ? 'var(--warn)' : ''; } }
+const nubeActive = () => NUBE.on && !!NUBE.ses;
+function cloudMark(key) {
+  if (!nubeActive()) return;
+  NUBE.dirty.add(key); clearTimeout(NUBE.timer);
+  NUBE.timer = setTimeout(cloudFlush, S.running ? 30000 : 2500);
+}
+async function cloudFlush() {
+  if (!nubeActive() || NUBE.busy || !NUBE.dirty.size) return;
+  NUBE.busy = true; clearTimeout(NUBE.timer); let failed = false;
+  for (const key of [...NUBE.dirty]) {
+    const meta = META[key]; if (!meta) { NUBE.dirty.delete(key); continue; }
+    try {
+      const d = (await dbGet(key)) || { rows: [], names: {} };
+      const rows = (d.rows || []).map((r) => { const o = { t: r.t, text: r.text }; if (r.e != null) o.e = r.e; if (r.w) o.w = Math.round(r.w * 100) / 100; if (r.spk) o.spk = r.spk; if (r.fix) o.fix = true; return o; });
+      const m = Object.assign({}, meta); delete m.audio;
+      NUBE.dirty.delete(key);
+      await nubeRest('POST', '?on_conflict=user_id,clave', { clave: key, nombre: meta.name || '', actualizado: new Date(meta.updated).toISOString(), meta: m, datos: { rows, names: d.names || {} } }, 'resolution=merge-duplicates,return=minimal');
+      syncSet(key, meta.updated);
+    } catch (e) { console.warn('No se pudo guardar en la cuenta', e); NUBE.dirty.add(key); failed = true; break; }
+  }
+  NUBE.busy = false;
+  syncState(failed ? 'Sin conexión: se guardará en tu cuenta cuando vuelva' : 'Guardado en tu cuenta ✓', failed);
+  if (NUBE.dirty.size) NUBE.timer = setTimeout(cloudFlush, failed ? 60000 : 3000);
+}
+async function cloudDelete(key) {
+  if (!nubeActive()) return;
+  NUBE.dirty.delete(key); syncSet(key, null);
+  try { await nubeRest('DELETE', '?clave=eq.' + encodeURIComponent(key)); } catch (e) { console.warn('No se pudo borrar en la cuenta', e); }
+}
+async function cloudSync() { // al entrar: iguala lo de esta computadora con lo guardado en la cuenta
+  if (!nubeActive()) return;
+  syncState('Sincronizando…');
+  try {
+    const list = (await nubeRest('GET', '?select=clave,actualizado')) || []; const remote = {};
+    for (const x of list) remote[x.clave] = Date.parse(x.actualizado) || 0;
+    const known = syncMap(); let changed = false;
+    for (const k of Object.keys(META)) {
+      if (!(k in remote)) { if (known[k]) { await dbDel(k, true); syncSet(k, null); changed = true; } else NUBE.dirty.add(k); }
+      else if (META[k].updated > remote[k] + 1500) NUBE.dirty.add(k);
+    }
+    for (const k of Object.keys(remote)) {
+      if (META[k] && remote[k] <= META[k].updated + 1500) { if (!known[k]) syncSet(k, META[k].updated); continue; }
+      if (S.key === k) continue;
+      const got = await nubeRest('GET', '?clave=eq.' + encodeURIComponent(k) + '&select=meta,datos'); const x = got && got[0]; if (!x) continue;
+      const hadAudio = META[k] && META[k].audio;
+      const meta = Object.assign({}, x.meta || {}, { key: k, updated: remote[k] }); if (hadAudio) meta.audio = true;
+      await dbPut(meta, x.datos || { rows: [], names: {} }, true); syncSet(k, remote[k]); changed = true;
+    }
+    if (changed) renderHistory();
+    syncState('Guardado en tu cuenta ✓');
+    if (NUBE.dirty.size) cloudFlush();
+  } catch (e) { console.warn('Sincronización falló', e); syncState('Sin conexión con tu cuenta: verás lo guardado en esta computadora', true); }
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) cloudFlush(); });
+
+// Pantalla de acceso
+const AUTH = { mode: 'in' };
+function authSay(t, good) { const m = $('authMsg'); m.textContent = t || ''; m.className = 'msg ' + (good ? 'good' : 'bad') + (t ? '' : ' hidden'); }
+function authMode(mode) {
+  AUTH.mode = mode; authSay('');
+  $('authTabIn').classList.toggle('on', mode === 'in'); $('authTabUp').classList.toggle('on', mode === 'up');
+  $('authTabIn').parentElement.classList.toggle('hidden', mode === 'newpass');
+  $('authEmail').parentElement.querySelector('label[for=authEmail]').classList.toggle('hidden', mode === 'newpass'); $('authEmail').classList.toggle('hidden', mode === 'newpass'); $('authEmail').required = mode !== 'newpass';
+  $('authPassLbl').classList.toggle('hidden', mode === 'forgot'); $('authPass').classList.toggle('hidden', mode === 'forgot'); $('authPass').required = mode !== 'forgot';
+  $('authPassLbl').textContent = mode === 'up' ? 'Contraseña (mínimo 8 caracteres)' : mode === 'newpass' ? 'Nueva contraseña (mínimo 8 caracteres)' : 'Contraseña';
+  $('authPass').autocomplete = mode === 'in' ? 'current-password' : 'new-password';
+  $('authGo').textContent = { in: 'Entrar', up: 'Crear mi cuenta', forgot: 'Enviarme el enlace', newpass: 'Guardar contraseña' }[mode];
+  $('authForgot').textContent = mode === 'forgot' ? 'Volver a iniciar sesión' : 'Olvidé mi contraseña';
+  $('authForgot').classList.toggle('hidden', mode === 'up' || mode === 'newpass');
+}
+function showAuth(mode) { $('authView').classList.remove('hidden'); document.querySelector('main').classList.add('hidden'); authMode(mode || 'in'); }
+const hereUrl = () => location.origin + location.pathname;
+function wireAuth() {
+  $('authTabIn').onclick = () => authMode('in'); $('authTabUp').onclick = () => authMode('up');
+  $('authForgot').onclick = () => authMode(AUTH.mode === 'forgot' ? 'in' : 'forgot');
+  $('logoutBtn').onclick = async () => {
+    if (S.running) return toast('Espera a que termine o detén la transcripción antes de salir');
+    $('logoutBtn').disabled = true; try { await cloudFlush(); } catch (e) {}
+    try { await authCall('logout', null, NUBE.ses && NUBE.ses.access); } catch (e) {}
+    sesSave(null); location.reload();
+  };
+  $('authForm').addEventListener('submit', async (ev) => {
+    ev.preventDefault(); const email = $('authEmail').value.trim(), pass = $('authPass').value; const btn = $('authGo');
+    if (AUTH.mode !== 'forgot' && pass.length < 8) return authSay('La contraseña debe tener al menos 8 caracteres.');
+    btn.disabled = true; authSay('');
+    try {
+      if (AUTH.mode === 'in') { const j = await authCall('token?grant_type=password', { email, password: pass }); sesSave(sesFrom(j)); location.reload(); return; }
+      if (AUTH.mode === 'up') {
+        const j = await authCall('signup?redirect_to=' + encodeURIComponent(hereUrl()), { email, password: pass });
+        if (j.access_token) { sesSave(sesFrom(j)); location.reload(); return; }
+        const u = j.user || j; if (u && Array.isArray(u.identities) && !u.identities.length) { authMode('in'); authSay('Ese correo ya tiene una cuenta. Inicia sesión.'); }
+        else { authMode('in'); authSay('Cuenta creada. Te enviamos un correo: ábrelo y pulsa el enlace para confirmarla. Después inicia sesión aquí.', true); }
+      }
+      if (AUTH.mode === 'forgot') { await authCall('recover?redirect_to=' + encodeURIComponent(hereUrl()), { email }); authSay('Si ese correo tiene cuenta, te llegará un enlace para poner una contraseña nueva.', true); }
+      if (AUTH.mode === 'newpass') { await authCall('user', { password: pass }, AUTH.recovery.access, 'PUT'); sesSave(AUTH.recovery); location.reload(); return; }
+    } catch (e) { authSay(e.message); }
+    btn.disabled = false;
+  });
+}
+async function authFromHash() { // enlaces que llegan por correo (confirmar cuenta, cambiar contraseña)
+  const h = new URLSearchParams(location.hash.replace(/^#/, '')); if (!h.get('access_token') && !h.get('error_description')) return null;
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+  if (h.get('error_description')) return { error: 'El enlace ya no es válido o venció. Pide uno nuevo.' };
+  try {
+    const u = await authCall('user', null, h.get('access_token'), 'GET');
+    const x = sesFrom({ access_token: h.get('access_token'), refresh_token: h.get('refresh_token'), expires_in: h.get('expires_in') }, u);
+    if (h.get('type') === 'recovery') return { recovery: x };
+    sesSave(x); return { ok: true };
+  } catch (e) { return { error: 'El enlace ya no es válido o venció. Pide uno nuevo.' }; }
+}
+async function bootAccount() { // devuelve false si hay que detenerse en la pantalla de acceso
+  if (!NUBE.on) return true;
+  wireAuth(); sesLoad();
+  const link = await authFromHash();
+  if (link && link.recovery) { AUTH.recovery = link.recovery; showAuth('newpass'); return false; }
+  if (!NUBE.ses) { showAuth('in'); if (link && link.error) authSay(link.error); return false; }
+  $('userEmail').textContent = NUBE.ses.email || ''; $('userBar').classList.remove('hidden');
+  return true;
+}
+
+(async () => {
+  let envOK = true;
+  try {
+    const w = new Worker(URL.createObjectURL(new Blob(['postMessage(1)'], { type: 'text/javascript' })));
+    envOK = await new Promise((res) => { const t = setTimeout(() => res(false), 3000); w.onmessage = () => { clearTimeout(t); res(true); }; w.onerror = () => { clearTimeout(t); res(false); }; });
+    w.terminate();
+  } catch (e) { envOK = false; }
+  if (!envOK || /claudeusercontent|claude\.ai/.test(location.hostname)) { $('envBox').classList.remove('hidden'); S.blocked = true; }
+  window.__txApi = { renderRows, appendRow, refreshSpeakers, rowsEl, dbPut, dbDel, renderHistory, cloudFlush, cloudSync, meta: () => META };
+  if (!(await bootAccount())) { window.__tx = S; window.__txReady = true; return; }
+  await dbOpen();
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+  renderHistory();
+  cloudSync();
+  S.gpu = await detectGPU();
+  updateEngineInfo(); renderHelperBox(); refreshStart();
+  window.__tx = S; window.__txReady = true; // para pruebas
+})();
+})();
+</script>
+</body>
+</html>
