@@ -1618,6 +1618,28 @@ async function decodeNative(file) {
   }
   return out;
 }
+// Los videos que fueron transmisiones en vivo llegan de YouTube como muchos trozos, cada uno con su propia cabecera
+// (ftyp + moov). El conversor no lee eso: se deja solo la primera cabecera y luego todos los trozos de audio.
+async function fixDash(file) {
+  try {
+    const head = new Uint8Array(await file.slice(0, 65536).arrayBuffer());
+    const txt = String.fromCharCode.apply(null, head);
+    if (txt.slice(4, 8) !== 'ftyp' || txt.split('moov').length < 3) return file;
+    step('st-audio', 'active', 'Ordenando el audio de la transmisión en vivo…');
+    const u = new Uint8Array(await file.arrayBuffer()); const dv = new DataView(u.buffer);
+    const keep = []; let p = 0, init = false;
+    while (p + 8 <= u.length) {
+      let sz = dv.getUint32(p); const t = String.fromCharCode(u[p + 4], u[p + 5], u[p + 6], u[p + 7]);
+      if (sz === 1) sz = Number(dv.getBigUint64(p + 8));
+      if (sz < 8 || p + sz > u.length) break;
+      if (t === 'ftyp' || t === 'moov') { if (!init) keep.push(u.subarray(p, p + sz)); if (t === 'moov') init = true; }
+      else if (t === 'moof' || t === 'mdat') keep.push(u.subarray(p, p + sz));
+      p += sz;
+    }
+    if (!init || keep.length < 3) return file;
+    return new File(keep, file.name, { type: file.type || 'audio/mp4' });
+  } catch (e) { console.warn('No se pudo ordenar el audio', e); return file; }
+}
 async function getPCM(file) {
   try { return await extractAudio(file); }
   catch (e1) {
@@ -2230,7 +2252,8 @@ async function start(resume) {
   let pcm;
   try {
     const pAudio = (async () => {
-      if (url) { const f = await getFromLink(url); S.file = f; S.name = f.name; $('resultTitle').textContent = S.name; setPlayer(f); }
+      if (url) { const f = await fixDash(await getFromLink(url)); S.file = f; S.name = f.name; $('resultTitle').textContent = S.name; setPlayer(f); }
+      else { S.file = await fixDash(S.file); }
       const x = await getPCM(S.file); step('st-audio', 'done', 'Listo'); return x;
     })();
     const pModel = loadModel(quality, lang || null, preferGPU).then(() => {
